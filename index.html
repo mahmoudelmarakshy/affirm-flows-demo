@@ -787,12 +787,18 @@ async function runStep(step) {
       break;
 
     case 'sdk_checkout':
-      logDivider('Affirm.js · affirm.checkout() + open({ onSuccess, onFail })');
+      logDivider('Affirm.js · affirm.checkout(data)');
       logApi({
-        method: 'POST', endpoint: 'affirm.checkout(data); affirm.checkout.open({ onSuccess, onFail })',
-        payload: { checkout: DIRECT_CHECKOUT, open: { onSuccess: 'fn(checkout_response)', onFail: 'fn(error)' } },
-        status: 200, durationMs: 12,
-        note: 'Client-side SDK call. The public API key initializes Affirm.js; affirm.checkout.open() is given onSuccess / onFail callbacks so the checkout_token (or an error) is returned to the browser when the shopper finishes.'
+        method: 'POST', endpoint: 'affirm.checkout(data)',
+        payload: DIRECT_CHECKOUT, status: 200, durationMs: 8,
+        note: 'The checkout OBJECT — the order data (merchant, billing, shipping, items, order_id, totals) sent to Affirm. This is the only place order data lives.'
+      });
+      logDivider('Affirm.js · affirm.checkout.open({ onSuccess, onFail })');
+      logApi({
+        method: 'POST', endpoint: 'affirm.checkout.open({ onSuccess, onFail })',
+        payload: { onSuccess: 'fn(checkout_response)', onFail: 'fn(error)' },
+        status: 200, durationMs: 4,
+        note: 'A SEPARATE call that opens the hosted checkout. onSuccess / onFail are JavaScript callbacks (handlers, not order data, NOT part of the checkout object): Affirm.js calls onSuccess with checkout_response.checkout_token when the shopper confirms, or onFail with an error on cancel/decline.'
       });
       break;
 
