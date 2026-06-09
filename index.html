@@ -298,6 +298,19 @@
 
   .notice { margin: 0 16px 12px; padding: 10px 12px; border-radius: 8px; font-size: 12px; background: #EEF4FF; border: 1px solid #C8DCFF; color: #1F3F8C; }
   .notice b { color: var(--affirm-accent); }
+
+  /* clickable sequence steps (back navigation) */
+  .seq-step { cursor: pointer; }
+  .seq-step:hover { background: #F0F3F9; }
+  .seq-step.active:hover { background: #EEF4FF; }
+  /* documentation links inside log entries / events */
+  .log-entry .doc-link, .log-event .doc-link {
+    display: inline-flex; align-items: center; gap: 5px; font-size: 11px;
+    color: var(--affirm-accent); text-decoration: none; font-weight: 600;
+  }
+  .log-entry .doc-link { margin: 8px 12px; }
+  .log-event .doc-link { margin: 6px 0 0; }
+  .log-entry .doc-link:hover, .log-event .doc-link:hover { text-decoration: underline; }
 </style>
 </head>
 <body>
@@ -314,6 +327,7 @@
       <button data-flow="direct" class="on">Direct API</button>
       <button data-flow="vcn">Virtual Card (VCN)</button>
     </div>
+    <button id="btn-back" disabled title="Go back one step">⏮ Back</button>
     <button id="btn-step" disabled title="Advance one step">⏭ Step</button>
     <button id="btn-play" class="btn-primary">▶ Auto-play</button>
     <button id="btn-reset" title="Reset the demo">↻ Reset</button>
@@ -576,8 +590,9 @@ const DIRECT_CHECKOUT = baseCheckout({
   user_confirmation_url_action: 'POST'
 });
 
-// VCN: affirm.checkout.open_vcn({ checkout_data: ... }) — no confirmation URLs.
-const VCN_CHECKOUT = baseCheckout({});
+// VCN: affirm.checkout.open_vcn({ checkout_data: ... }). use_vcn: true tells Affirm
+// to generate virtual card details on loan origination (per the VCN checkout docs).
+const VCN_CHECKOUT = baseCheckout({ use_vcn: true });
 
 // Direct API — what Affirm returns to user_confirmation_url, then the Authorize response.
 const AUTH_RESPONSE = {
@@ -653,6 +668,16 @@ const FLOWS = {
   ]
 };
 
+// Affirm documentation links surfaced next to each Affirm request/response.
+const DOCS = {
+  open:      { url: 'https://docs.affirm.com/developers/docs/open-affirm-checkout',                 label: 'Open Affirm Checkout' },
+  authorize: { url: 'https://docs.affirm.com/developers/reference/authorize_transaction',           label: 'Authorize Transaction' },
+  capture:   { url: 'https://docs.affirm.com/developers/reference/capture_transaction',             label: 'Capture Transaction' },
+  voidTxn:   { url: 'https://docs.affirm.com/developers/reference/void_transaction',                label: 'Void Transaction' },
+  refund:    { url: 'https://docs.affirm.com/developers/reference/refund_transaction',              label: 'Refund Transaction' },
+  vcn:       { url: 'https://docs.affirm.com/developers/docs/open-affirm-virtual-card-checkout',    label: 'Open Affirm Virtual Card Checkout' }
+};
+
 const ACTOR_NAMES = {
   member: 'Shopper', mfe: 'Merchant-FE', mbe: 'Merchant-BE',
   affe: 'Affirm Checkout', afbe: 'Affirm-API', pp: 'PaymentProc'
@@ -667,6 +692,8 @@ const state = {
   idx: -1,
   playing: false,
   awaitingUser: false,
+  replaying: false,
+  replayTarget: -1,
   modalOpen: false,
   modalConfirmed: false,
   cancelling: false,
@@ -737,16 +764,21 @@ function renderCurrentStep() {
 function clearLog() { $('#log').innerHTML = '<div class="log-empty">API requests and backend events will appear here as the flow runs.</div>'; }
 function firstLog() { const e = $('#log .log-empty'); if (e) e.remove(); }
 function logDivider(text) { firstLog(); const log = $('#log'); log.insertAdjacentHTML('beforeend', `<div class="log-divider">${escapeHtml(text)}</div>`); log.scrollTop = log.scrollHeight; }
-function logEvent(kind, title, detail = '') {
+function docLinkHtml(doc) {
+  if (!doc) return '';
+  return `<a class="doc-link" href="${doc.url}" target="_blank" rel="noopener">📖 Affirm docs: ${escapeHtml(doc.label)}</a>`;
+}
+function logEvent(kind, title, detail = '', doc = null) {
   firstLog(); const log = $('#log');
   log.insertAdjacentHTML('beforeend', `
     <div class="log-event ${kind}">
       <div class="ev-title">${escapeHtml(title)}</div>
       ${detail ? `<div class="ev-detail">${escapeHtml(detail)}</div>` : ''}
+      ${docLinkHtml(doc)}
     </div>`);
   log.scrollTop = log.scrollHeight;
 }
-function logApi({ method, endpoint, payload, response, status, durationMs, note }) {
+function logApi({ method, endpoint, payload, response, status, durationMs, note, doc }) {
   firstLog(); const log = $('#log');
   const okClass = status >= 200 && status < 300 ? 'ok' : 'err';
   log.insertAdjacentHTML('beforeend', `
@@ -760,6 +792,7 @@ function logApi({ method, endpoint, payload, response, status, durationMs, note 
       ${payload  ? `<pre class="json">▼ Request body\n${syntaxJson(payload)}</pre>` : ''}
       ${response ? `<pre class="json">▲ Response body\n${syntaxJson(response)}</pre>` : ''}
       ${note ? `<div class="note">${escapeHtml(note)}</div>` : ''}
+      ${docLinkHtml(doc)}
     </div>`);
   log.scrollTop = log.scrollHeight;
 }
@@ -791,14 +824,16 @@ async function runStep(step) {
       logApi({
         method: 'POST', endpoint: 'affirm.checkout(data)',
         payload: DIRECT_CHECKOUT, status: 200, durationMs: 8,
-        note: 'The checkout OBJECT — the order data (merchant, billing, shipping, items, order_id, totals) sent to Affirm. This is the only place order data lives.'
+        note: 'The checkout OBJECT — the order data (merchant, billing, shipping, items, order_id, totals) sent to Affirm. This is the only place order data lives.',
+        doc: DOCS.open
       });
       logDivider('Affirm.js · affirm.checkout.open({ onSuccess, onFail })');
       logApi({
         method: 'POST', endpoint: 'affirm.checkout.open({ onSuccess, onFail })',
         payload: { onSuccess: 'fn(checkout_response)', onFail: 'fn(error)' },
         status: 200, durationMs: 4,
-        note: 'A SEPARATE call that opens the hosted checkout. onSuccess / onFail are JavaScript callbacks (handlers, not order data, NOT part of the checkout object): Affirm.js calls onSuccess with checkout_response.checkout_token when the shopper confirms, or onFail with an error on cancel/decline.'
+        note: 'A SEPARATE call that opens the hosted checkout. onSuccess / onFail are JavaScript callbacks (handlers, not order data, NOT part of the checkout object): Affirm.js calls onSuccess with checkout_response.checkout_token when the shopper confirms, or onFail with an error on cancel/decline.',
+        doc: DOCS.open
       });
       break;
 
@@ -808,11 +843,13 @@ async function runStep(step) {
         method: 'POST', endpoint: 'affirm.checkout.open_vcn({ success, error, checkout_data })',
         payload: { checkout_data: VCN_CHECKOUT, success: 'fn(card_details)', error: 'fn(error_response)' },
         status: 200, durationMs: 12,
-        note: 'Client-side SDK call. With VCN there is no user_confirmation_url — Affirm returns the virtual card directly to the success callback in the browser.'
+        note: 'Client-side SDK call. checkout_data includes use_vcn: true so Affirm generates a virtual card on loan origination. There is no user_confirmation_url — Affirm returns the card directly to the success callback in the browser.',
+        doc: DOCS.vcn
       });
       break;
 
     case 'open_modal':
+      if (state.replaying && state.idx < state.replayTarget) break;
       openModal(state.flow === 'vcn'
         ? 'https://sandbox.affirm.com/u/vcn/' + CHECKOUT_TOKEN
         : 'https://sandbox.affirm.com/u/checkout/' + AUTH_RESPONSE.checkout_id);
@@ -821,6 +858,12 @@ async function runStep(step) {
       break;
 
     case 'modal_flow':
+      if (state.replaying && state.idx < state.replayTarget) break;
+      if (!state.modalOpen && !state.modalConfirmed) {
+        openModal(state.flow === 'vcn'
+          ? 'https://sandbox.affirm.com/u/vcn/' + CHECKOUT_TOKEN
+          : 'https://sandbox.affirm.com/u/checkout/' + AUTH_RESPONSE.checkout_id);
+      }
       showProcessing();
       if (state.modalConfirmed) break;
       state.awaitingUser = true;
@@ -833,26 +876,28 @@ async function runStep(step) {
         method: 'POST', endpoint: 'onSuccess(checkout_response)  ◀  Affirm.js browser callback',
         response: { checkout_token: CHECKOUT_TOKEN, created: '2026-06-05T18:04:09Z' },
         status: 200, durationMs: 0,
-        note: 'Affirm.js fires onSuccess in the browser with checkout_response.checkout_token. (If the shopper cancels or is declined, onFail(error) fires instead.) The frontend POSTs this token to its backend to authorize the charge.'
+        note: 'Affirm.js fires onSuccess in the browser with checkout_response.checkout_token. (If the shopper cancels or is declined, onFail(error) fires instead.) The frontend POSTs this token to its backend to authorize the charge.',
+        doc: DOCS.open
       });
-      logEvent('affirm', '◀ Affirm.js onSuccess fired', `checkout_token: ${CHECKOUT_TOKEN}`);
+      logEvent('affirm', '◀ Affirm.js onSuccess fired', `checkout_token: ${CHECKOUT_TOKEN}`, DOCS.open);
       break;
 
     case 'authorize': {
       logDivider('POST · Affirm Authorization API');
       const t0 = performance.now();
-      await sleep(420 + Math.random()*280);
+      if (!state.replaying) await sleep(420 + Math.random()*280);
       logApi({
-        method: 'POST', endpoint: 'https://api.affirm.com/api/v2/transactions',
+        method: 'POST', endpoint: 'https://api.affirm.com/api/v1/transactions',
         payload: { transaction_id: CHECKOUT_TOKEN, order_id: ORDER_ID },
-        response: AUTH_RESPONSE, status: 201, durationMs: Math.round(performance.now()-t0),
-        note: 'Server-to-server with private-key Basic auth. The request transaction_id is the checkout_token from onSuccess; order_id is the merchant\'s identifier from the checkout object. The response id is Affirm\'s transaction / loan id and is echoed back with order_id.'
+        response: AUTH_RESPONSE, status: 201, durationMs: state.replaying ? 540 : Math.round(performance.now()-t0),
+        note: 'Server-to-server with private-key Basic auth. The request transaction_id is the checkout_token from onSuccess; order_id is the merchant\'s identifier from the checkout object. The response id is Affirm\'s transaction / loan id and is echoed back with order_id.',
+        doc: DOCS.authorize
       });
       break;
     }
 
     case 'authorize_response':
-      logEvent('affirm', '◀ Affirm returned an authorized transaction', `id / loan id (Affirm): ${TXN_ID} · order_id (merchant): ${ORDER_ID} · amount: $329.38 · status: authorized`);
+      logEvent('affirm', '◀ Affirm returned an authorized transaction', `id / loan id (Affirm): ${TXN_ID} · order_id (merchant): ${ORDER_ID} · amount: $329.38 · status: authorized`, DOCS.authorize);
       $('#member-status-val').textContent = 'Loan authorized · creating order…';
       break;
 
@@ -862,9 +907,10 @@ async function runStep(step) {
       logApi({
         method: 'POST', endpoint: 'success(card_details)  ◀  Affirm virtual card issued',
         response: CARD_DETAILS, status: 200, durationMs: 0,
-        note: 'The success callback receives a one-time virtual card. number / expiration / cvv populate the merchant\'s normal card fields. (Charge ARI ties the card to the Affirm loan.)'
+        note: 'The success callback receives a one-time virtual card. number / expiration / cvv populate the merchant\'s normal card fields. (Charge ARI ties the card to the Affirm loan.)',
+        doc: DOCS.vcn
       });
-      logEvent('affirm', '◀ Affirm issued a virtual card', `•••• ${CARD_DETAILS.number.slice(-4)} · exp ${CARD_DETAILS.expiration}`);
+      logEvent('affirm', '◀ Affirm issued a virtual card', `•••• ${CARD_DETAILS.number.slice(-4)} · exp ${CARD_DETAILS.expiration}`, DOCS.vcn);
       break;
 
     case 'fill_card':
@@ -875,7 +921,7 @@ async function runStep(step) {
     case 'processor_auth': {
       logDivider('POST · Payment processor (card auth)');
       const t0 = performance.now();
-      await sleep(420 + Math.random()*300);
+      if (!state.replaying) await sleep(420 + Math.random()*300);
       logApi({
         method: 'POST', endpoint: 'https://api.processor.com/v1/payment_intents',
         payload: {
@@ -884,7 +930,7 @@ async function runStep(step) {
           metadata: { order_id: ORDER_ID, affirm_charge_ari: CARD_DETAILS.charge_ari }
         },
         response: { id: 'pi_3PabcXYZ', status: 'succeeded', amount: ORDER_TOTAL, network: 'visa', avs: 'Y', cvc_check: 'pass' },
-        status: 200, durationMs: Math.round(performance.now()-t0),
+        status: 200, durationMs: state.replaying ? 510 : Math.round(performance.now()-t0),
         note: 'Standard card authorization. The processor sees an ordinary Visa — Affirm involvement is invisible. Capture / refund later run through the processor, not Affirm.'
       });
       break;
@@ -1010,11 +1056,11 @@ function boCapture() {
   state.captured = true;
   logDivider('POST · Capture transaction');
   logApi({
-    method: 'POST', endpoint: `https://api.affirm.com/api/v2/transactions/${TXN_ID}/capture`,
-    payload: { order_id: ORDER_ID, shipping_carrier: 'UPS', shipping_confirmation: '1Z999AA' },
+    method: 'POST', endpoint: `https://api.affirm.com/api/v1/transactions/${TXN_ID}/capture`,
     response: { id: TXN_ID, status: 'captured', amount: ORDER_TOTAL, fee: 1318, currency: 'USD', type: 'capture' },
     status: 201, durationMs: 360 + Math.round(Math.random()*200),
-    note: 'Capture settles the funds — typically at fulfillment. After capture you can Refund but no longer Void.'
+    note: 'Simplest standard capture — POST to the transaction id, no body required. Capture settles the funds, typically at fulfillment. After capture you can Refund but no longer Void.',
+    doc: DOCS.capture
   });
   setBoPill('captured', 'Captured');
   $('#bo-capture').disabled = true;
@@ -1027,10 +1073,11 @@ function boVoid() {
   state.voided = true;
   logDivider('POST · Void transaction');
   logApi({
-    method: 'POST', endpoint: `https://api.affirm.com/api/v2/transactions/${TXN_ID}/void`,
+    method: 'POST', endpoint: `https://api.affirm.com/api/v1/transactions/${TXN_ID}/void`,
     response: { id: TXN_ID, status: 'voided', amount: ORDER_TOTAL, currency: 'USD', type: 'void' },
     status: 201, durationMs: 300 + Math.round(Math.random()*180),
-    note: 'Void releases an authorization that was never captured (auth-only). The loan is cancelled and the shopper owes nothing.'
+    note: 'Void releases an authorization that was never captured (auth-only). The loan is cancelled and the shopper owes nothing.',
+    doc: DOCS.voidTxn
   });
   setBoPill('voided', 'Voided');
   $('#bo-capture').disabled = true;
@@ -1042,11 +1089,12 @@ function boRefund(amount, partial) {
   if (!state.captured) return;
   logDivider('POST · Refund transaction');
   logApi({
-    method: 'POST', endpoint: `https://api.affirm.com/api/v2/transactions/${TXN_ID}/refund`,
+    method: 'POST', endpoint: `https://api.affirm.com/api/v1/transactions/${TXN_ID}/refund`,
     payload: { amount },
     response: { id: TXN_ID, status: partial ? 'partially_refunded' : 'refunded', amount_refunded: amount, currency: 'USD', type: 'refund' },
     status: 201, durationMs: 320 + Math.round(Math.random()*200),
-    note: partial ? 'Partial refund — a portion of the captured amount is returned to the shopper\'s Affirm loan.' : 'Full refund — the entire captured amount is returned and the loan is closed.'
+    note: partial ? 'Partial refund — pass amount to return part of the captured total to the shopper\'s Affirm loan.' : 'Full refund — omit amount (or pass the full total) to return everything and close the loan.',
+    doc: DOCS.refund
   });
   if (partial) {
     setBoPill('part', 'Partially refunded');
@@ -1087,26 +1135,59 @@ function step() {
   if (state.idx >= STEPS.length - 1) return;
   advance();
 }
-function reset() {
-  pause();
-  state.idx = -1;
-  state.awaitingUser = false;
-  state.modalConfirmed = false;
-  state.cancelling = false;
-  clearLog();
+function back() {
+  if (state.awaitingUser || state.idx < 0) return;
+  goTo(state.idx - 1);
+}
+function hideStorefrontStates() {
   $('#member-status').classList.add('hidden');
   $('#processing').classList.add('hidden');
   $('#thankyou').classList.add('hidden');
   $('#backoffice').classList.add('hidden');
   $('#choose-payment').classList.add('hidden');
   $('#btn-pay').disabled = false;
+}
+// Rewind/replay to any step: re-run steps 0..target-1 instantly (no delays, no
+// interactive modal), then run the target step live so it shows its real visual.
+async function goTo(targetIdx) {
+  pause();
+  targetIdx = Math.max(-1, Math.min(targetIdx, STEPS.length - 1));
+  state.awaitingUser = false;
+  state.cancelling = false;
+  state._modalResolver = null;
+  closeModal();
+  clearLog();
+  hideStorefrontStates();
+  const mfi = STEPS.findIndex(s => s.kind === 'modal_flow');
+  state.modalConfirmed = targetIdx > mfi;     // treat the modal as confirmed only once we're past it
+  state.replaying = true;
+  state.replayTarget = targetIdx;
+  state.idx = -1;
+  for (let i = 0; i < targetIdx; i++) { state.idx = i; await runStep(STEPS[i]); }
+  state.replaying = false;
+  if (targetIdx >= 0) { state.idx = targetIdx; await runStep(STEPS[targetIdx]); }
+  if (state.cancelling) { state.cancelling = false; return; }
+  renderCurrentStep();
+  setButtons();
+}
+function reset() {
+  pause();
+  state.idx = -1;
+  state.awaitingUser = false;
+  state.replaying = false;
+  state.modalConfirmed = false;
+  state.cancelling = false;
+  clearLog();
+  hideStorefrontStates();
+  $('#choose-payment').classList.add('hidden');
   closeModal();
   renderCurrentStep();
   setButtons();
 }
 function setButtons() {
   const atEnd = state.idx >= STEPS.length - 1;
-  $('#btn-step').disabled = state.playing || atEnd;
+  $('#btn-back').disabled = state.playing || state.awaitingUser || state.idx < 0;
+  $('#btn-step').disabled = state.playing || state.awaitingUser || atEnd;
   $('#btn-play').disabled = atEnd;
   $('#btn-play').textContent = state.playing ? '⏸ Pause' : (state.idx === -1 ? '▶ Auto-play' : '▶ Resume');
 }
@@ -1136,7 +1217,12 @@ $('#flow-toggle').addEventListener('click', (e) => {
 });
 $('#btn-play').addEventListener('click', () => state.playing ? pause() : play());
 $('#btn-step').addEventListener('click', step);
+$('#btn-back').addEventListener('click', back);
 $('#btn-reset').addEventListener('click', reset);
+$('#seq-list').addEventListener('click', (e) => {
+  const el = e.target.closest('.seq-step');
+  if (el && !state.playing && !state.awaitingUser) goTo(Number(el.dataset.idx));
+});
 $('#btn-pay').addEventListener('click', () => {
   $('#choose-payment').classList.add('hidden');
   if (state.idx === -1) play();
