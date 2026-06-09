@@ -409,10 +409,6 @@
           <span>txn / loan id (Affirm) <code id="bo-txn">—</code></span>
           <span class="pill authorized" id="bo-pill">Authorized</span>
         </div>
-        <div class="bo-state">
-          <span>order_id (merchant) <code id="bo-order">—</code></span>
-          <span style="color:var(--muted);font-size:11px;">from checkout object</span>
-        </div>
         <div class="bo-actions">
           <button class="bo-capture" id="bo-capture">Capture</button>
           <button id="bo-void">Void (auth only)</button>
@@ -1038,7 +1034,6 @@ function cancelToStart() {
 function openBackoffice() {
   state.captured = false; state.voided = false; state.refunded = false;
   $('#bo-txn').textContent = TXN_ID;
-  $('#bo-order').textContent = ORDER_ID;
   setBoPill('authorized', 'Authorized');
   $('#bo-capture').disabled = false;
   $('#bo-void').disabled = false;
