@@ -390,10 +390,14 @@
       <!-- Direct API only: merchant back-office transaction management -->
       <div id="backoffice" class="backoffice hidden">
         <div class="bo-h">🗂️ Merchant order management <span style="font-weight:600;color:#8090ad;">(back office)</span></div>
-        <div class="bo-sub">Affirm Transaction API — manage the authorized charge (see Managing transactions).</div>
+        <div class="bo-sub">Affirm Transaction API — manage the authorized charge (see Managing transactions). All calls key off Affirm's transaction / loan id.</div>
         <div class="bo-state">
-          <span>Transaction <code id="bo-txn">—</code></span>
+          <span>txn / loan id (Affirm) <code id="bo-txn">—</code></span>
           <span class="pill authorized" id="bo-pill">Authorized</span>
+        </div>
+        <div class="bo-state">
+          <span>order_id (merchant) <code id="bo-order">—</code></span>
+          <span style="color:var(--muted);font-size:11px;">from checkout object</span>
         </div>
         <div class="bo-actions">
           <button class="bo-capture" id="bo-capture">Capture</button>
@@ -531,8 +535,8 @@
 ─────────────────────────────────────────────────────────────────── */
 const PUBLIC_API_KEY = 'SJ0WQVUAV9FPV3Z5';
 const ORDER_TOTAL = 32938;           // $329.38 in cents
-const ORDER_ID = 'NW-10231';
-const TXN_ID = 'U8KPVQ2RX9TJ4M';     // Affirm transaction id (Direct API)
+const ORDER_ID = 'NW-10231';         // order_id = MERCHANT identifier, passed in the checkout object
+const TXN_ID = 'KQ7R-4821';          // transaction id = id = loan id = AFFIRM's identifier (format ABCD-1234)
 const CHECKOUT_TOKEN = '7Y2C0K9QW3ZB1A5R';
 
 // Common checkout object (matches the megafiddle structure).
@@ -619,7 +623,7 @@ const FLOWS = {
     { actors: ['mbe','afbe'], kind: 'authorize', label: 'Backend → Affirm: Authorize (POST /transactions)',
       desc: 'The frontend forwards the checkout_token to the backend, which exchanges it for a real charge by calling the Authorization API server-to-server with private-key Basic auth.' },
     { actors: ['afbe','mbe'], kind: 'authorize_response', label: 'Affirm returns the Transaction object {id, amount}',
-      desc: 'Affirm returns the authorized transaction: a transaction id and amount. This id is what the merchant stores and uses for capture / void / refund.' },
+      desc: 'Affirm returns the authorized transaction. id (= transaction id = loan id) is AFFIRM\'s identifier — the merchant stores it and uses it for capture / void / refund. order_id is the MERCHANT\'s own identifier that was passed in the checkout object and is echoed back.' },
     { actors: ['mbe','mfe'], kind: 'create_order', label: 'Validate auth → create order → show confirmation',
       desc: 'The backend validates the auth response, records "Affirm" as the payment method with the transaction id, creates the order, and tells the frontend to show confirmation.' },
     { actors: ['mfe','member'], kind: 'thank_you', label: 'Shopper sees the order confirmation',
@@ -836,13 +840,13 @@ async function runStep(step) {
         method: 'POST', endpoint: 'https://api.affirm.com/api/v2/transactions',
         payload: { transaction_id: CHECKOUT_TOKEN, order_id: ORDER_ID },
         response: AUTH_RESPONSE, status: 201, durationMs: Math.round(performance.now()-t0),
-        note: 'Server-to-server with private-key Basic auth. transaction_id is the checkout_token from the confirmation URL. Affirm returns the authorized transaction id + amount.'
+        note: 'Server-to-server with private-key Basic auth. The request transaction_id is the checkout_token from onSuccess; order_id is the merchant\'s identifier from the checkout object. The response id is Affirm\'s transaction / loan id and is echoed back with order_id.'
       });
       break;
     }
 
     case 'authorize_response':
-      logEvent('affirm', '◀ Affirm returned an authorized transaction', `id: ${TXN_ID} · amount: $329.38 · status: authorized`);
+      logEvent('affirm', '◀ Affirm returned an authorized transaction', `id / loan id (Affirm): ${TXN_ID} · order_id (merchant): ${ORDER_ID} · amount: $329.38 · status: authorized`);
       $('#member-status-val').textContent = 'Loan authorized · creating order…';
       break;
 
@@ -887,7 +891,7 @@ async function runStep(step) {
 
     /* ---- shared ---- */
     case 'create_order':
-      logEvent('merchant', '🧾 Order created', `Payment method: Affirm · order_id ${ORDER_ID}` + (state.flow === 'direct' ? ` · txn ${TXN_ID}` : ''));
+      logEvent('merchant', '🧾 Order created', `Payment method: Affirm · order_id (merchant): ${ORDER_ID}` + (state.flow === 'direct' ? ` · txn / loan id (Affirm): ${TXN_ID}` : ''));
       break;
 
     case 'thank_you':
@@ -982,6 +986,7 @@ function cancelToStart() {
 function openBackoffice() {
   state.captured = false; state.voided = false; state.refunded = false;
   $('#bo-txn').textContent = TXN_ID;
+  $('#bo-order').textContent = ORDER_ID;
   setBoPill('authorized', 'Authorized');
   $('#bo-capture').disabled = false;
   $('#bo-void').disabled = false;
