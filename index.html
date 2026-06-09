@@ -563,7 +563,9 @@ const baseCheckout = (extraMerchant) => ({
   total: ORDER_TOTAL
 });
 
-// Direct API: affirm.checkout(...) payload (has user_confirmation_url / redirect).
+// Direct API: affirm.checkout(...) payload. Result is handled via the
+// onSuccess / onFail callbacks on affirm.checkout.open(); user_confirmation_url /
+// user_cancel_url remain as a redirect fallback.
 const DIRECT_CHECKOUT = baseCheckout({
   user_confirmation_url: 'https://northwind.example.com/affirm/confirm',
   user_cancel_url: 'https://northwind.example.com/affirm/cancel',
@@ -606,16 +608,16 @@ const FLOWS = {
   direct: [
     { actors: ['member','mfe'], kind: 'click', label: 'Shopper clicks "Pay with affirm"',
       desc: 'The shopper picks Affirm at checkout. The merchant frontend prepares the checkout object and launches Affirm.' },
-    { actors: ['mfe','affe'], kind: 'sdk_checkout', label: 'Frontend: affirm.checkout(obj) → affirm.checkout.open()',
-      desc: 'The merchant frontend hands the checkout object (cart, shipping, billing, totals + user_confirmation_url) to the Affirm.js SDK and opens the hosted Affirm checkout.' },
+    { actors: ['mfe','affe'], kind: 'sdk_checkout', label: 'Frontend: affirm.checkout(obj) → affirm.checkout.open({ onSuccess, onFail })',
+      desc: 'The merchant frontend passes the checkout object to affirm.checkout(), then opens the hosted checkout with onSuccess / onFail callbacks so Affirm.js returns the result directly in the browser.' },
     { actors: ['affe','member'], kind: 'open_modal', label: 'Affirm Checkout UI opens',
       desc: 'Affirm renders its hosted checkout. Affirm validates the verified address/phone and name/price format before the loan can be confirmed.' },
     { actors: ['member','affe'], kind: 'modal_flow', wait: true, label: 'Shopper verifies & confirms the loan',
-      desc: 'Happy path: the shopper confirms Affirm\'s terms (sandbox PIN 123456). Cancel path: closing the modal returns user_cancel_url and the shopper picks another payment method.' },
-    { actors: ['affe','mbe'], kind: 'token_post', label: 'Affirm → user_confirmation_url (POST checkout_token)',
-      desc: 'On confirm, Affirm POSTs (or GETs) the checkout_token to the merchant\'s user_confirmation_url. The merchant backend grabs the token to authorize the charge.' },
+      desc: 'Happy path: the shopper confirms Affirm\'s terms (sandbox PIN 123456) and onSuccess fires. Cancel path: closing the modal fires onFail and the shopper picks another payment method.' },
+    { actors: ['affe','mfe'], kind: 'checkout_success', label: 'Affirm.js onSuccess(checkout_response) → checkout_token',
+      desc: 'On confirm, Affirm.js invokes the onSuccess callback in the browser with checkout_response.checkout_token. (On cancel/decline, onFail is called with an error instead.) The frontend forwards the token to the backend to authorize.' },
     { actors: ['mbe','afbe'], kind: 'authorize', label: 'Backend → Affirm: Authorize (POST /transactions)',
-      desc: 'The merchant backend exchanges the checkout_token for a real charge by calling the Authorization API server-to-server with private-key Basic auth.' },
+      desc: 'The frontend forwards the checkout_token to the backend, which exchanges it for a real charge by calling the Authorization API server-to-server with private-key Basic auth.' },
     { actors: ['afbe','mbe'], kind: 'authorize_response', label: 'Affirm returns the Transaction object {id, amount}',
       desc: 'Affirm returns the authorized transaction: a transaction id and amount. This id is what the merchant stores and uses for capture / void / refund.' },
     { actors: ['mbe','mfe'], kind: 'create_order', label: 'Validate auth → create order → show confirmation',
@@ -781,11 +783,12 @@ async function runStep(step) {
       break;
 
     case 'sdk_checkout':
-      logDivider('Affirm.js · affirm.checkout() + open()');
+      logDivider('Affirm.js · affirm.checkout() + open({ onSuccess, onFail })');
       logApi({
-        method: 'POST', endpoint: 'affirm.checkout(data)  /  affirm.checkout.open()',
-        payload: DIRECT_CHECKOUT, status: 200, durationMs: 12,
-        note: 'Client-side SDK call. The public API key initializes Affirm.js; the checkout object includes user_confirmation_url so Affirm knows where to return the checkout_token after the shopper confirms.'
+        method: 'POST', endpoint: 'affirm.checkout(data); affirm.checkout.open({ onSuccess, onFail })',
+        payload: { checkout: DIRECT_CHECKOUT, open: { onSuccess: 'fn(checkout_response)', onFail: 'fn(error)' } },
+        status: 200, durationMs: 12,
+        note: 'Client-side SDK call. The public API key initializes Affirm.js; affirm.checkout.open() is given onSuccess / onFail callbacks so the checkout_token (or an error) is returned to the browser when the shopper finishes.'
       });
       break;
 
@@ -814,14 +817,15 @@ async function runStep(step) {
       return new Promise((resolve) => { state._modalResolver = resolve; });
 
     /* ---- Direct API ---- */
-    case 'token_post':
-      logDivider('Affirm → merchant · user_confirmation_url');
+    case 'checkout_success':
+      logDivider('Affirm.js · onSuccess(checkout_response)');
       logApi({
-        method: 'POST', endpoint: 'https://northwind.example.com/affirm/confirm',
-        payload: { checkout_token: CHECKOUT_TOKEN },
-        status: 200, durationMs: 70 + Math.round(Math.random()*60),
-        note: 'Affirm POSTs the checkout_token to the merchant\'s user_confirmation_url. The merchant grabs the token to authorize the charge server-to-server.'
+        method: 'POST', endpoint: 'onSuccess(checkout_response)  ◀  Affirm.js browser callback',
+        response: { checkout_token: CHECKOUT_TOKEN, created: '2026-06-05T18:04:09Z' },
+        status: 200, durationMs: 0,
+        note: 'Affirm.js fires onSuccess in the browser with checkout_response.checkout_token. (If the shopper cancels or is declined, onFail(error) fires instead.) The frontend POSTs this token to its backend to authorize the charge.'
       });
+      logEvent('affirm', '◀ Affirm.js onSuccess fired', `checkout_token: ${CHECKOUT_TOKEN}`);
       break;
 
     case 'authorize': {
@@ -953,7 +957,7 @@ function onAffirmCancelled() {
   closeModal();
   if (state._modalResolver) { state._modalResolver(); state._modalResolver = null; }
   logEvent('affirm', '✖ Affirm checkout cancelled', state.flow === 'direct'
-    ? 'Shopper closed Affirm without confirming. Affirm returns user_cancel_url; no transaction was created.'
+    ? 'Shopper closed Affirm without confirming. Affirm.js calls onFail(error); no checkout_token is returned and no transaction is created.'
     : 'Shopper closed Affirm without confirming. The error callback fires; no virtual card was issued.');
   cancelToStart();
 }
