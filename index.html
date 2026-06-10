@@ -350,32 +350,9 @@
       </div>
 
       <div class="cart-heading">Your cart <span>(2 items)</span></div>
-      <div class="product">
-        <div class="thumb">🎒</div>
-        <div class="info">
-          <div class="name">Trailhead 65L Hiking Backpack</div>
-          <div class="sku">SKU TRH-65 · Qty 1</div>
-          <div class="price">$189.99</div>
-        </div>
-      </div>
-      <div class="product">
-        <div class="thumb">🧥</div>
-        <div class="info">
-          <div class="name">Summit 800-Fill Down Jacket</div>
-          <div class="sku">SKU SDJ-22 · Qty 1</div>
-          <div class="price">$129.99</div>
-        </div>
-      </div>
+      <div id="cart-items"></div>
 
-      <div class="totals">
-        <div class="row"><span>Subtotal</span><span>$319.98</span></div>
-        <div class="row discount"><span>Returning customer 5%</span><span>−$5.00</span></div>
-        <div class="row discount"><span>President's Day 10% off</span><span>−$10.00</span></div>
-        <div class="row"><span>Shipping</span><span>FREE</span></div>
-        <div class="row"><span>Tax</span><span>$24.40</span></div>
-        <div class="row total"><span>Total</span><span>$329.38</span></div>
-        <div class="affirm-blurb">As low as <b>$82.35/mo</b> with <span class="affirm-name">Affirm</span></div>
-      </div>
+      <div class="totals" id="totals"></div>
 
       <div id="choose-payment" class="choose-payment hidden">⚠️ Checkout cancelled — please choose a payment method to continue.</div>
 
@@ -478,7 +455,7 @@
         </div>
         <div class="afm-resend">Didn't get a code? <a>Resend</a></div>
         <button class="afm-btn" id="afm-continue">Continue</button>
-        <p class="afm-fineprint">Sandbox verification — code is prefilled for this demo. No SMS is sent. Type "123456" for the verification pin.</p>
+        <p class="afm-fineprint" id="afm-verify-fineprint">Sandbox verification — code is prefilled for this demo. No SMS is sent. Type "123456" for the verification pin.</p>
       </div>
 
       <div class="afm-screen hidden" id="afm-screen-terms">
@@ -522,7 +499,7 @@
 
       <div class="afm-sandbox">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 2.75a9.25 9.25 0 100 18.5 9.25 9.25 0 000-18.5zM1.25 12C1.25 6.063 6.063 1.25 12 1.25S22.75 6.063 22.75 12 17.937 22.75 12 22.75 1.25 17.937 1.25 12zM12 10.25a.75.75 0 01.75.75v5a.75.75 0 01-1.5 0v-5a.75.75 0 01.75-.75zM12 9a1 1 0 100-2 1 1 0 000 2z" fill="#0C0C14"/></svg>
-        <div class="afm-sandbox-t"><b>You are currently using the Affirm Developer Sandbox.</b> This checkout does not create real loans. Type "123456" for the verification pin.</div>
+        <div class="afm-sandbox-t" id="afm-sandbox-t"><b>You are currently using the Affirm Developer Sandbox.</b> This checkout does not create real loans. Type "123456" for the verification pin.</div>
       </div>
     </div>
     <div class="status-bar">
@@ -543,37 +520,131 @@
      • VCN:        affirm.checkout.open_vcn({ success, error, checkout_data })
                    → success(card_details) → charge the virtual card
 ─────────────────────────────────────────────────────────────────── */
-const PUBLIC_API_KEY = 'SJ0WQVUAV9FPV3Z5';
-const ORDER_TOTAL = 32938;           // $329.38 in cents
-const ORDER_ID = 'NW-10231';         // order_id = MERCHANT identifier, passed in the checkout object
-const TXN_ID = 'KQ7R-4821';          // transaction id = id = loan id = AFFIRM's identifier (format ABCD-1234)
-const CHECKOUT_TOKEN = '7Y2C0K9QW3ZB1A5R';
+/* ═══════════════════════════════════════════════════════════════════
+   DEMO_CONFIG — EDIT THIS BLOCK TO REBRAND THE DEMO
+   ───────────────────────────────────────────────────────────────────
+   Everything a partner needs to make this their own merchant demo lives
+   here. Prices are in DOLLARS; the engine converts to cents and keeps the
+   storefront, the Affirm checkout object, and the API logs perfectly in
+   sync (subtotal/discounts/tax → total are all computed, never hardcoded).
+   You should not need to touch any code below this block.
+═══════════════════════════════════════════════════════════════════ */
+const DEMO_CONFIG = {
+  // ── Brand / look & feel ──────────────────────────────────────────
+  brand: {
+    shortName:   'Northwind',                 // header chip (left of "× affirm")
+    storeName:   'Northwind Outfitters',      // storefront name + checkout object merchant.name
+    accent:      '#0E7C66',                   // primary merchant color
+    accentDark:  '#0A5C4C',                   // darker shade (hovers, header strip)
+    affirmAccent:'#4A4AF4',                   // Affirm brand accent (usually leave as-is)
+    searchPlaceholder: 'Search outdoor gear…',
+    subnav: ['Free 2-day shipping', '30-day returns']
+  },
+
+  // ── Cart (prices in dollars) ─────────────────────────────────────
+  cart: {
+    items: [
+      { name: 'Trailhead 65L Hiking Backpack', sku: 'TRH-65', qty: 1, price: 189.99, emoji: '🎒' },
+      { name: 'Summit 800-Fill Down Jacket',   sku: 'SDJ-22', qty: 1, price: 129.99, emoji: '🧥' }
+    ],
+    // Order-summary adjustments. amount is in dollars; negative = a discount.
+    // code/checkoutName control how it appears in the Affirm checkout object's `discounts`.
+    adjustments: [
+      { label: 'Returning customer 5%',  amount: -5.00,  code: 'RETURN5',   checkoutName: 'Returning customer 5% discount' },
+      { label: "President's Day 10% off", amount: -10.00, code: 'PRESDAY10', checkoutName: "President's Day 10% off" }
+    ],
+    shipping: 0,        // 0 renders as "FREE"
+    tax: 24.40,
+    currency: 'USD'
+  },
+
+  // ── Identifiers used across the checkout object + API logs ────────
+  ids: {
+    publicApiKey:  'SJ0WQVUAV9FPV3Z5',
+    orderId:       'NW-10231',          // merchant identifier (your order_id, in the checkout object)
+    transactionId: 'KQ7R-4821',         // Affirm transaction / loan id (format ABCD-1234)
+    checkoutToken: '7Y2C0K9QW3ZB1A5R',  // returned by onSuccess / open_vcn
+    checkoutId:    'CO9KQ2VR7TX1'        // Affirm checkout_id on the Authorize response
+  },
+
+  // ── Buyer (shipping + billing in the checkout object) ────────────
+  customer: {
+    name: { first: 'Joe', last: 'Doe' },
+    address: { line1: '633 Folsom St', line2: 'Floor 7', city: 'San Francisco', state: 'CA', zipcode: '94107', country: 'USA' },
+    phone_number: '4153334567', email: 'joedoe@example.com'
+  },
+
+  // ── Sample virtual card returned by the VCN success callback ──────
+  card: {
+    number: '4111 1148 2032 7751',
+    cvv: '386',
+    expiration: '08/29',
+    cardholder_name: 'AffirmInc testing profile',
+    charge_ari: 'MFFO-VIIT',
+    billing_address: { line1: '650 California St.', line2: '12th Floor', city: 'San Francisco', state: 'CA', zipcode: '94108' }
+  },
+
+  // ── Misc ─────────────────────────────────────────────────────────
+  sandboxPin: '123456',
+  metadata: { platform_type: 'northwind-web', shipping_type: 'UPS Ground' },
+  urls: {
+    confirm: 'https://northwind.example.com/affirm/confirm',
+    cancel:  'https://northwind.example.com/affirm/cancel'
+  }
+};
+
+/* ═══════════════════════════════════════════════════════════════════
+   Derived values — computed from DEMO_CONFIG (do not edit below)
+═══════════════════════════════════════════════════════════════════ */
+const toCents  = (d) => Math.round(d * 100);
+const money    = (c) => '$' + (c / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+const PUBLIC_API_KEY = DEMO_CONFIG.ids.publicApiKey;
+const ORDER_ID       = DEMO_CONFIG.ids.orderId;
+const TXN_ID         = DEMO_CONFIG.ids.transactionId;
+const CHECKOUT_TOKEN = DEMO_CONFIG.ids.checkoutToken;
+const SANDBOX_PIN    = DEMO_CONFIG.sandboxPin;
+
+const ITEMS    = DEMO_CONFIG.cart.items.map(i => ({ ...i, cents: toCents(i.price) }));
+const ADJ      = DEMO_CONFIG.cart.adjustments.map(a => ({ ...a, cents: toCents(a.amount) }));
+const SUBTOTAL = ITEMS.reduce((s, i) => s + i.cents * i.qty, 0);
+const ADJ_SUM  = ADJ.reduce((s, a) => s + a.cents, 0);
+const SHIP_CENTS = toCents(DEMO_CONFIG.cart.shipping || 0);
+const TAX_CENTS  = toCents(DEMO_CONFIG.cart.tax || 0);
+const ORDER_TOTAL = SUBTOTAL + ADJ_SUM + SHIP_CENTS + TAX_CENTS;   // single source of truth
+const TOTAL_QTY  = ITEMS.reduce((s, i) => s + i.qty, 0);
+
+// Illustrative payment-plan amounts, derived from the total.
+const PAY4 = Math.round(ORDER_TOTAL / 4);                          // pay-in-4 (0% APR, biweekly)
+const PLAN_3MO = Math.round(ORDER_TOTAL / 3);                      // 3 months (0% APR)
+const PLAN_6MO = (() => {                                          // 6 months @ 15% APR (amortized)
+  const r = 0.15 / 12;
+  return Math.round(ORDER_TOTAL * r / (1 - Math.pow(1 + r, -6)));
+})();
+const LOWAS = PAY4;                                                // "As low as $X/mo" headline
+
+function buildDiscounts() {
+  const out = {};
+  ADJ.forEach((a, i) => {
+    out[a.code || ('DISC' + (i + 1))] = {
+      discount_amount: Math.abs(a.cents),
+      discount_display_name: a.checkoutName || a.label
+    };
+  });
+  return out;
+}
 
 // Common checkout object (matches the megafiddle structure).
 const baseCheckout = (extraMerchant) => ({
-  merchant: Object.assign({ name: 'Northwind Outfitters' }, extraMerchant),
-  shipping: {
-    name: { first: 'Joe', last: 'Doe' },
-    address: { line1: '633 Folsom St', line2: 'Floor 7', city: 'San Francisco', state: 'CA', zipcode: '94107', country: 'USA' },
-    phone_number: '4153334567', email: 'joedoe@example.com'
-  },
-  billing: {
-    name: { first: 'Joe', last: 'Doe' },
-    address: { line1: '633 Folsom St', line2: 'Floor 7', city: 'San Francisco', state: 'CA', zipcode: '94107', country: 'USA' },
-    phone_number: '4153334567', email: 'joedoe@example.com'
-  },
-  items: [
-    { display_name: 'Trailhead 65L Hiking Backpack', sku: 'TRH-65', unit_price: 18999, qty: 1 },
-    { display_name: 'Summit 800-Fill Down Jacket', sku: 'SDJ-22', unit_price: 12999, qty: 1 }
-  ],
-  discounts: {
-    RETURN5: { discount_amount: 500, discount_display_name: 'Returning customer 5% discount' },
-    PRESDAY10: { discount_amount: 1000, discount_display_name: "President's Day 10% off" }
-  },
-  metadata: { platform_type: 'northwind-web', shipping_type: 'UPS Ground' },
+  merchant: Object.assign({ name: DEMO_CONFIG.brand.storeName }, extraMerchant),
+  shipping: { name: DEMO_CONFIG.customer.name, address: DEMO_CONFIG.customer.address, phone_number: DEMO_CONFIG.customer.phone_number, email: DEMO_CONFIG.customer.email },
+  billing:  { name: DEMO_CONFIG.customer.name, address: DEMO_CONFIG.customer.address, phone_number: DEMO_CONFIG.customer.phone_number, email: DEMO_CONFIG.customer.email },
+  items: ITEMS.map(i => ({ display_name: i.name, sku: i.sku, unit_price: i.cents, qty: i.qty })),
+  discounts: buildDiscounts(),
+  metadata: DEMO_CONFIG.metadata,
   order_id: ORDER_ID,
-  shipping_amount: 0,
-  tax_amount: 2440,
+  shipping_amount: SHIP_CENTS,
+  tax_amount: TAX_CENTS,
   total: ORDER_TOTAL
 });
 
@@ -581,8 +652,8 @@ const baseCheckout = (extraMerchant) => ({
 // onSuccess / onFail callbacks on affirm.checkout.open(); user_confirmation_url /
 // user_cancel_url remain as a redirect fallback.
 const DIRECT_CHECKOUT = baseCheckout({
-  user_confirmation_url: 'https://northwind.example.com/affirm/confirm',
-  user_cancel_url: 'https://northwind.example.com/affirm/cancel',
+  user_confirmation_url: DEMO_CONFIG.urls.confirm,
+  user_cancel_url: DEMO_CONFIG.urls.cancel,
   user_confirmation_url_action: 'POST'
 });
 
@@ -596,8 +667,8 @@ const AUTH_RESPONSE = {
   amount: ORDER_TOTAL,
   amount_refunded: 0,
   authorization_expiration: '2026-06-12T18:04:11Z',
-  checkout_id: 'CO9KQ2VR7TX1',
-  currency: 'USD',
+  checkout_id: DEMO_CONFIG.ids.checkoutId,
+  currency: DEMO_CONFIG.cart.currency,
   order_id: ORDER_ID,
   provider_id: 1,
   events: [{ id: 'ev_8821', type: 'auth', amount: ORDER_TOTAL, created: '2026-06-05T18:04:11Z' }],
@@ -607,13 +678,13 @@ const AUTH_RESPONSE = {
 
 // VCN — what the success(card_details) callback receives.
 const CARD_DETAILS = {
-  number: '4111 1148 2032 7751',
-  cvv: '386',
-  expiration: '08/29',
-  cardholder_name: 'AffirmInc testing profile',
+  number: DEMO_CONFIG.card.number,
+  cvv: DEMO_CONFIG.card.cvv,
+  expiration: DEMO_CONFIG.card.expiration,
+  cardholder_name: DEMO_CONFIG.card.cardholder_name,
   checkout_token: CHECKOUT_TOKEN,
-  charge_ari: 'MFFO-VIIT',
-  billing_address: { line1: '650 California St.', line2: '12th Floor', city: 'San Francisco', state: 'CA', zipcode: '94108' }
+  charge_ari: DEMO_CONFIG.card.charge_ari,
+  billing_address: DEMO_CONFIG.card.billing_address
 };
 
 /* ─────────────────────────────────────────────────────────────────
@@ -628,7 +699,7 @@ const FLOWS = {
     { actors: ['affe','member'], kind: 'open_modal', label: 'Affirm Checkout UI opens',
       desc: 'Affirm renders its hosted checkout. Affirm validates the verified address/phone and name/price format before the loan can be confirmed.' },
     { actors: ['member','affe'], kind: 'modal_flow', wait: true, label: 'Shopper verifies & confirms the loan',
-      desc: 'Happy path: the shopper confirms Affirm\'s terms (sandbox PIN 123456) and onSuccess fires. Cancel path: closing the modal fires onFail and the shopper picks another payment method.' },
+      desc: `Happy path: the shopper confirms Affirm's terms (sandbox PIN ${SANDBOX_PIN}) and onSuccess fires. Cancel path: closing the modal fires onFail and the shopper picks another payment method.` },
     { actors: ['affe','mfe'], kind: 'checkout_success', label: 'Affirm.js onSuccess(checkout_response) → checkout_token',
       desc: 'On confirm, Affirm.js invokes the onSuccess callback in the browser with checkout_response.checkout_token. (On cancel/decline, onFail is called with an error instead.) The frontend forwards the token to the backend to authorize.' },
     { actors: ['mbe','afbe'], kind: 'authorize', label: 'Backend → Affirm: Authorize (POST /transactions)',
@@ -648,7 +719,7 @@ const FLOWS = {
     { actors: ['affe','member'], kind: 'open_modal', label: 'Affirm Checkout UI opens',
       desc: 'Affirm renders its hosted checkout and validates the shopper details before the loan can be confirmed.' },
     { actors: ['member','affe'], kind: 'modal_flow', wait: true, label: 'Shopper verifies & confirms the loan',
-      desc: 'Happy path: the shopper confirms Affirm\'s terms (sandbox PIN 123456). Cancel path: closing the modal fires the error callback and the shopper picks another payment method.' },
+      desc: `Happy path: the shopper confirms Affirm's terms (sandbox PIN ${SANDBOX_PIN}). Cancel path: closing the modal fires the error callback and the shopper picks another payment method.` },
     { actors: ['affe','mfe'], kind: 'vcn_success', label: 'success(card_details) — Affirm issues a virtual card',
       desc: 'Affirm calls the success callback with card_details: a one-time virtual card number, expiration, CVV and billing address tied to the approved loan.' },
     { actors: ['mfe','mbe'], kind: 'fill_card', label: 'Frontend → Backend: hand off the virtual card',
@@ -809,7 +880,7 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 async function runStep(step) {
   switch (step.kind) {
     case 'click':
-      logEvent('user', '👆 Shopper clicked "Pay with affirm"', 'Cart total: $329.38 · 2 items');
+      logEvent('user', '👆 Shopper clicked "Pay with affirm"', `Cart total: ${money(ORDER_TOTAL)} · ${TOTAL_QTY} items`);
       $('#btn-pay').disabled = true;
       $('#member-status').classList.remove('hidden');
       $('#member-status-val').textContent = 'Launching Affirm checkout…';
@@ -893,7 +964,7 @@ async function runStep(step) {
     }
 
     case 'authorize_response':
-      logEvent('affirm', '◀ Affirm returned an authorized transaction', `id / loan id (Affirm): ${TXN_ID} · order_id (merchant): ${ORDER_ID} · amount: $329.38 · status: authorized`, DOCS.authorize);
+      logEvent('affirm', '◀ Affirm returned an authorized transaction', `id / loan id (Affirm): ${TXN_ID} · order_id (merchant): ${ORDER_ID} · amount: ${money(ORDER_TOTAL)} · status: authorized`, DOCS.authorize);
       $('#member-status-val').textContent = 'Loan authorized · creating order…';
       break;
 
@@ -1200,8 +1271,58 @@ function setFlow(flow) {
 }
 
 /* ─────────────────────────────────────────────────────────────────
+   Apply DEMO_CONFIG to the storefront (brand, cart, totals, modal, pin)
+─────────────────────────────────────────────────────────────────── */
+function setPlanRow(plan, amount, suffix) {
+  const el = $(`.afm-plan-row[data-plan="${plan}"] .afm-plan-mo`);
+  if (el) el.innerHTML = `<b>${amount}</b>${suffix}`;
+}
+function applyConfig() {
+  const b = DEMO_CONFIG.brand, rs = document.documentElement.style;
+  rs.setProperty('--merch', b.accent);
+  rs.setProperty('--merch-dark', b.accentDark);
+  rs.setProperty('--affirm-accent', b.affirmAccent);
+  document.title = `${b.storeName} × Affirm — integration demo`;
+
+  $('.brand .merch').textContent = b.shortName;
+  $('.merch-name').textContent = b.storeName;
+  $('.merch-search').textContent = b.searchPlaceholder;
+  $('.merch-cart .count').textContent = TOTAL_QTY;
+  $('.merch-subnav').innerHTML = b.subnav.map(s => `<span>${escapeHtml(s)}</span>`).join('<span>·</span>');
+  $('.cart-heading').innerHTML = `Your cart <span>(${TOTAL_QTY} item${TOTAL_QTY !== 1 ? 's' : ''})</span>`;
+
+  $('#cart-items').innerHTML = ITEMS.map(i => `
+    <div class="product">
+      <div class="thumb">${i.emoji || '📦'}</div>
+      <div class="info">
+        <div class="name">${escapeHtml(i.name)}</div>
+        <div class="sku">SKU ${escapeHtml(i.sku)} · Qty ${i.qty}</div>
+        <div class="price">${money(i.cents * i.qty)}</div>
+      </div>
+    </div>`).join('');
+
+  const rows = [`<div class="row"><span>Subtotal</span><span>${money(SUBTOTAL)}</span></div>`];
+  ADJ.forEach(a => rows.push(`<div class="row discount"><span>${escapeHtml(a.label)}</span><span>−${money(Math.abs(a.cents))}</span></div>`));
+  rows.push(`<div class="row"><span>Shipping</span><span>${SHIP_CENTS ? money(SHIP_CENTS) : 'FREE'}</span></div>`);
+  rows.push(`<div class="row"><span>Tax</span><span>${money(TAX_CENTS)}</span></div>`);
+  rows.push(`<div class="row total"><span>Total</span><span>${money(ORDER_TOTAL)}</span></div>`);
+  rows.push(`<div class="affirm-blurb">As low as <b>${money(LOWAS)}/mo</b> with <span class="affirm-name">Affirm</span></div>`);
+  $('#totals').innerHTML = rows.join('');
+
+  $('#afm-amount-val').textContent = money(ORDER_TOTAL);
+  $('.afm-total-v').textContent = money(ORDER_TOTAL);
+  setPlanRow('p4', money(PAY4), '/payment · 4 payments');
+  setPlanRow('p3', money(PLAN_3MO), '/mo · 3 months');
+  setPlanRow('p6', money(PLAN_6MO), '/mo · 6 months');
+
+  $('#afm-verify-fineprint').textContent = `Sandbox verification — code is prefilled for this demo. No SMS is sent. Type "${SANDBOX_PIN}" for the verification pin.`;
+  $('#afm-sandbox-t').innerHTML = `<b>You are currently using the Affirm Developer Sandbox.</b> This checkout does not create real loans. Type "${SANDBOX_PIN}" for the verification pin.`;
+}
+
+/* ─────────────────────────────────────────────────────────────────
    Wire up
 ─────────────────────────────────────────────────────────────────── */
+applyConfig();
 buildSeqList();
 renderCurrentStep();
 setButtons();
