@@ -46,6 +46,22 @@ sequence to jump to it, and a speed slider.
 Download `index.html` and double-click it. No server, no build, no install —
 great for an offline merchant call.
 
+### Option C — install the Cursor Skill (for the team)
+This repo ships a self-contained **Cursor Skill** that teaches the agent to
+rebrand, preview, deploy, and extend the demo from plain-English prompts. It
+bundles a copy of the template, so it works offline.
+
+```bash
+# from a clone of this repo:
+cp -R skill/affirm-integration-demo ~/.cursor/skills/
+```
+
+Then in Cursor, ask things like *“Rebrand the Affirm demo for Casper — navy
+theme, $1,095 mattress, 10% off”* or *“Spin up a new Affirm demo for H&R Block
+and deploy it to Pages.”* See [`skill/affirm-integration-demo/`](skill/affirm-integration-demo/)
+(`SKILL.md` + `examples.md`) for the full prompt set. A zipped copy is attached
+to each [release](https://github.com/mahmoudelmarakshy/affirm-flows-demo/releases).
+
 ---
 
 ## Customize — the `DEMO_CONFIG` block

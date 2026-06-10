@@ -1,0 +1,1363 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Affirm Integration Demo — Direct API vs Virtual Card (VCN)</title>
+<style>
+  /* ───── theme ───── */
+  :root {
+    --merch: #0E7C66;          /* generic merchant brand */
+    --merch-dark: #0A5C4C;
+    --affirm-black: #0C0C14;
+    --affirm-accent: #4A4AF4;
+    --affirm-navy: #000049;
+    --bg: #F4F6FA;
+    --panel: #FFFFFF;
+    --panel-2: #FAFBFD;
+    --border: #E3E7EE;
+    --text: #1A2230;
+    --muted: #6B7588;
+    --success: #1A8754;
+    --warn: #B45F06;
+    --danger: #C0392B;
+    --code-bg: #0F1722;
+    --code-fg: #E6EDF7;
+    --shadow: 0 1px 2px rgba(15,23,34,.05), 0 8px 24px rgba(15,23,34,.06);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.45;
+  }
+  code, pre { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 12px; }
+  button {
+    font: inherit; cursor: pointer; border: 1px solid var(--border);
+    background: var(--panel); border-radius: 6px; padding: 6px 12px; color: var(--text);
+    transition: background .15s, border-color .15s, transform .05s;
+  }
+  button:hover { background: var(--panel-2); border-color: #C8D0DC; }
+  button:active { transform: translateY(1px); }
+  button[disabled] { opacity: .45; cursor: not-allowed; }
+  .btn-primary { background: var(--merch); color: white; border-color: var(--merch); font-weight: 600; }
+  .btn-primary:hover { background: var(--merch-dark); border-color: var(--merch-dark); }
+  .btn-affirm { background: var(--affirm-navy); color: white; border-color: var(--affirm-navy); font-weight: 600; }
+  .btn-affirm:hover { background: #10104f; }
+
+  /* ───── header ───── */
+  header.top {
+    display: flex; align-items: center; gap: 16px;
+    padding: 10px 18px; background: white; border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 10; flex-wrap: wrap;
+  }
+  header.top .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; }
+  header.top .brand .merch {
+    background: var(--merch); color: white; padding: 4px 10px; border-radius: 4px;
+    font-size: 13px; letter-spacing: .3px;
+  }
+  header.top .brand .affirm {
+    background: var(--affirm-black); color: white; padding: 4px 10px; border-radius: 4px;
+    font-size: 13px; letter-spacing: .3px;
+  }
+  header.top .brand .x { color: var(--muted); font-weight: 400; }
+  header.top .title { color: var(--muted); font-weight: 500; font-size: 13px; max-width: 280px; }
+  header.top .controls { margin-left: auto; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  header.top .speed { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+  header.top input[type="range"] { width: 90px; }
+
+  /* flow toggle (segmented control) */
+  .flow-toggle { display: inline-flex; border: 1px solid var(--border); border-radius: 999px; padding: 3px; background: var(--panel-2); }
+  .flow-toggle button {
+    border: 0; background: transparent; border-radius: 999px; padding: 6px 14px;
+    font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: .2px;
+  }
+  .flow-toggle button:hover { background: transparent; }
+  .flow-toggle button.on { background: var(--affirm-navy); color: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.18); }
+  .flow-toggle .pin { font-size: 10px; opacity: .7; margin-left: 5px; }
+
+  /* ───── layout ───── */
+  main {
+    display: grid;
+    grid-template-columns: minmax(340px, 1fr) minmax(400px, 1.05fr) minmax(420px, 1.2fr);
+    gap: 16px; padding: 16px; height: calc(100vh - 60px);
+  }
+  .panel {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    box-shadow: var(--shadow); display: flex; flex-direction: column; overflow: hidden;
+  }
+  .panel h2 {
+    margin: 0; padding: 12px 16px; border-bottom: 1px solid var(--border);
+    font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px;
+    color: var(--muted); display: flex; align-items: center; gap: 8px;
+  }
+  .panel h2 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--merch); }
+  .panel .body { padding: 16px; overflow-y: auto; flex: 1; }
+
+  /* ───── storefront column ───── */
+  .merch-nav {
+    margin: -16px -16px 0; padding: 11px 16px;
+    background: var(--merch); display: flex; align-items: center; gap: 12px;
+  }
+  .merch-nav .merch-name { color: #fff; font-weight: 800; font-size: 16px; letter-spacing: .3px; flex-shrink: 0; }
+  .merch-nav .merch-search { flex: 1; background: #fff; border-radius: 18px; padding: 7px 14px; color: #8A93A3; font-size: 12px; min-width: 0; }
+  .merch-nav .merch-cart { position: relative; color: #fff; font-size: 19px; flex-shrink: 0; }
+  .merch-nav .merch-cart .count {
+    position: absolute; top: -7px; right: -9px; background: #fff; color: var(--merch);
+    font-size: 10px; font-weight: 800; border-radius: 9px; padding: 0 5px; line-height: 16px;
+  }
+  .merch-subnav {
+    margin: 0 -16px 16px; padding: 7px 16px; background: var(--merch-dark);
+    display: flex; align-items: center; gap: 10px; color: #D7EFE8; font-size: 11px; flex-wrap: wrap;
+  }
+  .cart-heading { font-weight: 800; font-size: 16px; margin-bottom: 12px; }
+  .cart-heading span { color: var(--muted); font-weight: 600; font-size: 12px; }
+
+  .product { display: flex; gap: 12px; padding: 11px; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 10px; background: var(--panel); box-shadow: var(--shadow); }
+  .product .thumb {
+    width: 72px; height: 72px; flex-shrink: 0; font-size: 34px;
+    background: #F2F5F4; border: 1px solid var(--border);
+    border-radius: 8px; display: flex; align-items: center; justify-content: center;
+  }
+  .product .info { flex: 1; min-width: 0; }
+  .product .info .name { font-weight: 600; font-size: 13px; line-height: 1.35; }
+  .product .info .sku { color: var(--muted); font-size: 11px; margin-top: 3px; }
+  .product .info .price { margin-top: 8px; font-weight: 800; color: var(--merch); font-size: 15px; }
+
+  .totals { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--border); }
+  .totals .row { display: flex; justify-content: space-between; padding: 3px 0; font-size: 13px; }
+  .totals .row.discount { color: var(--success); }
+  .totals .row.total { font-weight: 700; font-size: 16px; padding-top: 8px; border-top: 1px solid var(--border); margin-top: 6px; }
+
+  .cta { margin-top: 16px; }
+  .cta button { width: 100%; padding: 12px; font-size: 14px; }
+  .cta .int-note { margin-top: 8px; font-size: 11px; color: var(--muted); text-align: center; line-height: 1.4; }
+  .cta .int-note b { color: var(--affirm-accent); }
+  .affirm-blurb {
+    margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--border);
+    color: var(--muted); font-size: 13px; text-align: right;
+  }
+  .affirm-blurb b { color: var(--affirm-black); font-weight: 700; }
+  .affirm-name { color: var(--affirm-black); font-weight: 700; }
+
+  .processing { margin-top: 16px; padding: 28px 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2); text-align: center; }
+  .processing .spinner { width: 40px; height: 40px; margin: 0 auto 14px; border-radius: 50%; border: 4px solid var(--border); border-top-color: var(--merch); animation: spin .9s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .processing .processing-text { color: var(--muted); font-size: 13px; font-weight: 600; }
+
+  .choose-payment { margin-top: 14px; padding: 11px 13px; border-radius: 8px; background: #FFF4E5; border: 1px solid #F3C892; color: #8A4B0A; font-size: 13px; font-weight: 600; text-align: center; }
+
+  .member-state { margin-top: 14px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2); font-size: 13px; }
+  .member-state .label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .4px; }
+  .member-state .value { margin-top: 4px; }
+
+  .thankyou { margin-top: 16px; padding: 18px; border-radius: 10px; background: linear-gradient(135deg, #E8F4EC, #F4FAF6); border: 1px solid #A8DEC0; text-align: center; }
+  .thankyou .check { width: 48px; height: 48px; border-radius: 50%; background: var(--success); color: white; display: inline-flex; align-items: center; justify-content: center; font-size: 28px; margin-bottom: 8px; }
+  .thankyou h3 { margin: 0 0 4px; color: #0C5B36; }
+  .thankyou .order-id { color: var(--muted); font-size: 12px; }
+
+  /* back-office (merchant order management) — Direct API only */
+  .backoffice { margin-top: 16px; padding: 14px; border: 1px solid #C9D4E6; border-radius: 10px; background: #F6F8FC; }
+  .backoffice .bo-h { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; color: #41506B; display: flex; align-items: center; gap: 8px; }
+  .backoffice .bo-sub { font-size: 11.5px; color: var(--muted); margin: 4px 0 12px; }
+  .backoffice .bo-state { display: flex; align-items: center; justify-content: space-between; font-size: 12px; padding: 8px 10px; background: #fff; border: 1px solid var(--border); border-radius: 7px; margin-bottom: 12px; }
+  .backoffice .bo-state .pill { font-weight: 800; padding: 2px 9px; border-radius: 999px; font-size: 11px; }
+  .pill.authorized { background: #E7EEFF; color: #2B3FA5; }
+  .pill.captured  { background: #E4F6EC; color: #1A7A4B; }
+  .pill.voided    { background: #F1F1F4; color: #5B5B66; }
+  .pill.refunded  { background: #FBEAE7; color: #B23A2A; }
+  .pill.part      { background: #FFF3DE; color: #8A5A12; }
+  .backoffice .bo-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .backoffice .bo-actions button { padding: 9px; font-size: 12.5px; font-weight: 600; }
+  .bo-capture { background: var(--affirm-navy); color:#fff; border-color: var(--affirm-navy); }
+  .bo-capture:hover { background:#10104f; }
+  .hidden { display: none !important; }
+
+  /* ───── sequence diagram column ───── */
+  .seq-current { padding: 12px 16px; border-bottom: 1px solid var(--border); background: var(--panel-2); }
+  .seq-current .step-num { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .5px; font-weight: 600; }
+  .seq-current .step-label { margin-top: 4px; font-weight: 600; font-size: 14px; }
+  .seq-current .step-desc { margin-top: 4px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+
+  .seq-list { padding: 12px; }
+  .seq-step { display: grid; grid-template-columns: 32px 1fr; gap: 10px; padding: 10px 8px; border-radius: 6px; border-left: 3px solid transparent; transition: background .2s, border-color .2s; position: relative; }
+  .seq-step.done { opacity: .55; }
+  .seq-step.active { background: #EEF4FF; border-left-color: var(--affirm-accent); animation: pulse 1.6s infinite; }
+  @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(74,74,244,.32); } 50% { box-shadow: 0 0 0 6px rgba(74,74,244,0); } }
+  .seq-step .num { width: 28px; height: 28px; border-radius: 50%; background: var(--bg); color: var(--muted); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; border: 1px solid var(--border); }
+  .seq-step.active .num { background: var(--affirm-accent); color: #fff; border-color: var(--affirm-accent); }
+  .seq-step.done .num { background: var(--success); color: white; border-color: var(--success); }
+  .seq-step.done .num::before { content: '✓'; }
+  .seq-step.done .num span { display: none; }
+  .seq-step .meta { min-width: 0; }
+  .seq-step .actors { display: flex; align-items: center; gap: 6px; font-size: 11px; flex-wrap: wrap; }
+  .seq-step .actor { padding: 1px 7px; border-radius: 10px; background: var(--bg); color: var(--muted); font-weight: 600; letter-spacing: .2px; }
+  .seq-step .actor.member { background: #FDECEC; color: #9B2C2C; }
+  .seq-step .actor.mfe, .seq-step .actor.mbe { background: #DCF1EB; color: #0A5C4C; }
+  .seq-step .actor.affe, .seq-step .actor.afbe { background: #E7E7FF; color: #3434B8; }
+  .seq-step .actor.pp { background: #FFF0DC; color: #884A11; }
+  .seq-step .arrow { color: var(--muted); font-size: 10px; }
+  .seq-step .label { margin-top: 2px; font-size: 13px; font-weight: 500; }
+
+  /* ───── activity log column ───── */
+  .log { padding: 12px; }
+  .log-entry { border: 1px solid var(--border); border-radius: 8px; margin-bottom: 10px; overflow: hidden; background: var(--panel-2); animation: slideIn .3s ease-out; }
+  @keyframes slideIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .log-entry .head { padding: 8px 12px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; font-size: 12px; }
+  .log-entry .head .method { padding: 1px 7px; border-radius: 4px; font-weight: 700; font-size: 10px; letter-spacing: .4px; }
+  .log-entry .head .method.GET { background: #D6EAD3; color: #1F5C1A; }
+  .log-entry .head .method.POST { background: #FFE6B8; color: #855511; }
+  .log-entry .head .endpoint { color: var(--text); font-family: "SF Mono", Menlo, monospace; }
+  .log-entry .head .status { margin-left: auto; font-weight: 700; font-size: 11px; color: var(--muted); }
+  .log-entry .head .status.ok { color: var(--success); }
+  .log-entry .head .status.err { color: #B45F06; }
+  .log-entry .head .duration { color: var(--muted); font-size: 11px; }
+  .log-entry pre { margin: 0; padding: 10px 12px; background: var(--code-bg); color: var(--code-fg); overflow-x: auto; font-size: 11px; line-height: 1.5; max-height: 240px; }
+  .log-entry pre.json .key { color: #79C0FF; }
+  .log-entry pre.json .str { color: #A5D6A0; }
+  .log-entry pre.json .num { color: #FFA657; }
+  .log-entry pre.json .bool { color: #FFA657; }
+  .log-entry pre.json .null { color: #FF7B72; }
+  .log-entry .note { padding: 8px 12px; background: #FFFBEB; border-top: 1px solid #FAE5A3; font-size: 11px; color: #6B4F00; }
+  .log-divider { display: flex; align-items: center; gap: 10px; margin: 12px 0 8px; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .5px; font-weight: 600; }
+  .log-divider::before, .log-divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+  .log-event { padding: 8px 12px; border-left: 3px solid var(--border); margin-bottom: 8px; background: var(--panel-2); border-radius: 4px; font-size: 12px; }
+  .log-event.system { border-left-color: var(--merch); }
+  .log-event.user { border-left-color: #E0A400; }
+  .log-event.affirm { border-left-color: var(--affirm-accent); }
+  .log-event.processor { border-left-color: var(--warn); }
+  .log-event.merchant { border-left-color: var(--merch-dark); }
+  .log-event .ev-title { font-weight: 600; }
+  .log-event .ev-detail { color: var(--muted); margin-top: 2px; }
+  .log-empty { color: var(--muted); font-size: 12px; text-align: center; padding: 24px 12px; }
+
+  /* ───── modal (simulated Affirm 2025 checkout) ───── */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(15,23,34,.6); display: flex; align-items: center; justify-content: center; z-index: 100; animation: fadeIn .2s ease-out; }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  .modal { width: min(560px, 92vw); height: min(720px, 92vh); background: white; border-radius: 14px; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,.3); display: flex; flex-direction: column; animation: slideUp .25s ease-out; }
+  @keyframes slideUp { from { opacity: 0; transform: translateY(20px) scale(.97); } to { opacity: 1; transform: none; } }
+  .modal .browser-chrome { background: #ECEEF1; padding: 8px 10px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #D5D9DF; }
+  .modal .browser-chrome .dots { display: flex; gap: 5px; }
+  .modal .browser-chrome .dots span { width: 11px; height: 11px; border-radius: 50%; background: #C8CCD3; }
+  .modal .browser-chrome .url { flex: 1; background: white; border: 1px solid #D5D9DF; border-radius: 5px; padding: 4px 10px; font-size: 11px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: "SF Mono", Menlo, monospace; }
+  .modal .browser-chrome .close-modal { border: 0; background: transparent; padding: 0 4px; color: var(--muted); font-size: 18px; line-height: 1; }
+
+  @font-face { font-family:'CalibreDemo'; src:url('https://www.affirm.com/fonts/src/calibre-regular.woff2') format('woff2'); font-weight:400; font-display:swap; }
+  @font-face { font-family:'CalibreDemo'; src:url('https://www.affirm.com/fonts/src/calibre-semibold.woff2') format('woff2'); font-weight:600; font-display:swap; }
+  @font-face { font-family:'CalibreDemo'; src:url('https://www.affirm.com/fonts/src/calibre-bold.woff2') format('woff2'); font-weight:700; font-display:swap; }
+  .modal .affirm-mock { flex: 1; overflow: auto; background: #fff; color: #0C0C14; font-family: 'CalibreDemo', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; flex-direction: column; }
+  .afm-nav { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px 4px; }
+  .afm-nav-logo { height: 22px; width: auto; }
+  .afm-nav-btn { border: 0; background: transparent; padding: 4px; cursor: pointer; line-height: 0; color: #0C0C14; }
+  .afm-progress { display: flex; gap: 8px; padding: 4px 18px 8px; }
+  .afm-prog-step { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+  .afm-prog-step::before { content: ''; height: 4px; border-radius: 2px; background: #E4E4EA; }
+  .afm-prog-step.done::before, .afm-prog-step.current::before { background: #4A4AF4; }
+  .afm-prog-step span { font-size: 11px; color: #8A8A95; }
+  .afm-prog-step.current span { color: #0C0C14; font-weight: 600; }
+  .afm-prog-step.done span { color: #4A4AF4; }
+  .afm-screen { padding: 8px 20px 16px; display: flex; flex-direction: column; gap: 14px; }
+  .afm-screen.hidden { display: none; }
+  .afm-h1 { font-size: 24px; font-weight: 600; color: #0C0C14; margin: 2px 0 0; letter-spacing: -.2px; }
+  .afm-sub { font-size: 14.5px; color: #5B5B66; margin: 0; line-height: 1.45; }
+  .afm-code { display: flex; gap: 8px; margin-top: 2px; }
+  .afm-code span { flex: 1; height: 52px; border: 1.5px solid #DADAE2; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 600; color: #0C0C14; }
+  .afm-code span.filled { border-color: #4A4AF4; }
+  .afm-resend { font-size: 13px; color: #5B5B66; }
+  .afm-resend a { color: #4A4AF4; font-weight: 600; }
+  .afm-amount { display: flex; align-items: baseline; justify-content: space-between; padding-bottom: 6px; border-bottom: 1px solid #ECECF1; }
+  .afm-amount-k { font-size: 14px; color: #5B5B66; }
+  .afm-amount-v { font-size: 20px; font-weight: 700; color: #0C0C14; }
+  .afm-plan { display: flex; flex-direction: column; gap: 12px; }
+  .afm-plan-row { display: flex; align-items: flex-start; gap: 12px; border: 1.5px solid #DADAE2; border-radius: 14px; padding: 14px 16px; cursor: pointer; transition: border-color .12s; }
+  .afm-plan-row.afm-selected { border-color: #0C0C14; border-width: 2px; padding: 13px 15px; }
+  .afm-radio { width: 22px; height: 22px; border-radius: 50%; border: 2px solid #C4C4CE; position: relative; flex-shrink: 0; margin-top: 2px; }
+  .afm-radio.on { border-color: #0C0C14; }
+  .afm-radio.on::after { content: ''; position: absolute; inset: 3px; border-radius: 50%; background: #0C0C14; }
+  .afm-plan-body { display: flex; flex-direction: column; gap: 4px; }
+  .afm-badge { align-self: flex-start; font-size: 11px; font-weight: 600; color: #4A4AF4; background: #ECECFF; padding: 2px 8px; border-radius: 6px; }
+  .afm-badge.alt { color: #0B7A52; background: #E5F6EE; }
+  .afm-plan-mo { font-size: 15px; color: #0C0C14; }
+  .afm-plan-mo b { font-size: 18px; font-weight: 700; }
+  .afm-plan-sub { font-size: 12.5px; color: #74747F; }
+  .afm-total { display: flex; justify-content: space-between; align-items: center; font-size: 14px; }
+  .afm-total-v { font-weight: 700; font-size: 16px; }
+  .afm-btn { background: #000049; color: #fff; border: 0; border-radius: 999px; padding: 15px; font-size: 16px; font-weight: 600; cursor: pointer; font-family: inherit; }
+  .afm-btn:hover { background: #10104f; }
+  .afm-cancel { background: transparent; border: 0; color: #5B5B66; font-size: 14px; padding: 2px; cursor: pointer; font-family: inherit; }
+  .afm-cancel:hover { color: #0C0C14; }
+  .afm-fineprint { font-size: 12px; color: #74747F; line-height: 1.45; margin: 0; text-align: center; }
+  .afm-fineprint a { color: #4A4AF4; }
+  .afm-sandbox { margin: auto 16px 14px; background: #F4F4F7; border-radius: 12px; padding: 12px 14px; display: flex; gap: 10px; align-items: flex-start; }
+  .afm-sandbox svg { flex-shrink: 0; margin-top: 1px; }
+  .afm-sandbox-t { font-size: 12.5px; color: #3A3A45; line-height: 1.45; }
+  .afm-sandbox-t b { color: #0C0C14; }
+  .modal .status-bar { padding: 8px 12px; border-top: 1px solid #D5D9DF; background: #FAFBFD; font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+  .modal .status-bar .live-dot { width: 6px; height: 6px; border-radius: 50%; background: #E0245E; animation: blink 1.4s infinite; }
+  @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
+
+  .notice { margin: 0 16px 12px; padding: 10px 12px; border-radius: 8px; font-size: 12px; background: #EEF4FF; border: 1px solid #C8DCFF; color: #1F3F8C; }
+  .notice b { color: var(--affirm-accent); }
+
+  /* clickable sequence steps (back navigation) */
+  .seq-step { cursor: pointer; }
+  .seq-step:hover { background: #F0F3F9; }
+  .seq-step.active:hover { background: #EEF4FF; }
+  /* documentation links inside log entries / events */
+  .log-entry .doc-link, .log-event .doc-link {
+    display: inline-flex; align-items: center; gap: 5px; font-size: 11px;
+    color: var(--affirm-accent); text-decoration: none; font-weight: 600;
+  }
+  .log-entry .doc-link { margin: 8px 12px; }
+  .log-event .doc-link { margin: 6px 0 0; }
+  .log-entry .doc-link:hover, .log-event .doc-link:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="brand">
+    <span class="merch">Northwind</span>
+    <span class="x">×</span>
+    <span class="affirm">affirm</span>
+  </div>
+  <div class="title">Direct API &amp; Virtual Card (VCN) integration demo</div>
+  <div class="controls">
+    <div class="flow-toggle" id="flow-toggle">
+      <button data-flow="direct" class="on">Direct API</button>
+      <button data-flow="vcn">Virtual Card (VCN)</button>
+    </div>
+    <button id="btn-back" disabled title="Go back one step">⏮ Back</button>
+    <button id="btn-step" disabled title="Advance one step">⏭ Step</button>
+    <button id="btn-play" class="btn-primary">▶ Auto-play</button>
+    <button id="btn-reset" title="Reset the demo">↻ Reset</button>
+    <span class="speed">Speed <input type="range" id="speed" min="500" max="3000" step="250" value="1400" /></span>
+  </div>
+</header>
+
+<main>
+  <!-- ─── LEFT: shopper / merchant view ─── -->
+  <section class="panel">
+    <h2><span class="dot"></span>Storefront — Shopper view</h2>
+    <div class="body" id="member-view">
+      <div class="merch-nav">
+        <span class="merch-name">Northwind Outfitters</span>
+        <div class="merch-search">Search outdoor gear…</div>
+        <div class="merch-cart">🛒<span class="count">2</span></div>
+      </div>
+      <div class="merch-subnav">
+        <span>Free 2-day shipping</span><span>·</span><span>30-day returns</span>
+      </div>
+
+      <div class="cart-heading">Your cart <span>(2 items)</span></div>
+      <div id="cart-items"></div>
+
+      <div class="totals" id="totals"></div>
+
+      <div id="choose-payment" class="choose-payment hidden">⚠️ Checkout cancelled — please choose a payment method to continue.</div>
+
+      <div class="cta">
+        <button id="btn-pay" class="btn-affirm">Pay with affirm</button>
+        <div class="int-note" id="int-note">Integration: <b>Direct API</b> — <code>affirm.checkout()</code> → confirm → server-side <code>authorize</code></div>
+      </div>
+
+      <div id="member-status" class="member-state hidden">
+        <div class="label">Affirm checkout status</div>
+        <div class="value" id="member-status-val">Waiting…</div>
+      </div>
+
+      <div id="processing" class="processing hidden">
+        <div class="spinner"></div>
+        <div class="processing-text">Processing your order…</div>
+      </div>
+
+      <div id="thankyou" class="thankyou hidden">
+        <div class="check">✓</div>
+        <h3>Thanks for your order!</h3>
+        <div class="order-id">Order # <span id="order-id">—</span></div>
+        <div style="margin-top: 8px; font-size: 12px;">Financed by Affirm</div>
+      </div>
+
+      <!-- Direct API only: merchant back-office transaction management -->
+      <div id="backoffice" class="backoffice hidden">
+        <div class="bo-h">🗂️ Merchant order management <span style="font-weight:600;color:#8090ad;">(back office)</span></div>
+        <div class="bo-sub">Affirm Transaction API — manage the authorized charge (see Managing transactions). All calls key off Affirm's transaction / loan id.</div>
+        <div class="bo-state">
+          <span>txn / loan id (Affirm) <code id="bo-txn">—</code></span>
+          <span class="pill authorized" id="bo-pill">Authorized</span>
+        </div>
+        <div class="bo-actions">
+          <button class="bo-capture" id="bo-capture">Capture</button>
+          <button id="bo-void">Void (auth only)</button>
+          <button id="bo-refund" disabled>Refund (full)</button>
+          <button id="bo-partial" disabled>Refund $50.00</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── MIDDLE: sequence ─── -->
+  <section class="panel">
+    <h2><span class="dot" style="background: var(--affirm-accent)"></span>Sequence of operations</h2>
+    <div class="seq-current">
+      <div class="step-num" id="cur-step-num">Idle</div>
+      <div class="step-label" id="cur-step-label">Pick a flow, then click "Auto-play" or "Step".</div>
+      <div class="step-desc" id="cur-step-desc">Toggle between Affirm's Direct API and Virtual Card (VCN) integrations to compare how each one works end-to-end.</div>
+    </div>
+    <div class="body">
+      <div class="seq-list" id="seq-list"></div>
+    </div>
+  </section>
+
+  <!-- ─── RIGHT: activity log ─── -->
+  <section class="panel">
+    <h2><span class="dot" style="background: var(--affirm-black)"></span>Backend activity &amp; API calls</h2>
+    <div class="notice">Simulation build — <b>no live API calls</b>, no credentials. Request/response bodies below are illustrative test data.</div>
+    <div class="body">
+      <div class="log" id="log"><div class="log-empty">API requests and backend events will appear here as the flow runs.</div></div>
+    </div>
+  </section>
+</main>
+
+<!-- ─── Simulated Affirm checkout modal ─── -->
+<div id="modal-overlay" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="browser-chrome">
+      <div class="dots"><span></span><span></span><span></span></div>
+      <div class="url" id="modal-url">https://sandbox.affirm.com/…</div>
+      <button class="close-modal" id="btn-close-modal" title="Close">×</button>
+    </div>
+    <div class="affirm-mock" id="affirm-mock">
+      <div class="afm-nav">
+        <button class="afm-nav-btn" id="afm-nav-close" aria-label="Cancel" title="Cancel">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M5.47 5.47a.75.75 0 011.06 0L12 10.94l5.47-5.47a.75.75 0 111.06 1.06L13.06 12l5.47 5.47a.75.75 0 11-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 01-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 010-1.06z" fill="#0C0C14"/></svg>
+        </button>
+        <svg class="afm-nav-logo" viewBox="0 0 175.3 69.9" role="img" aria-label="Affirm">
+          <path fill="#101820" d="M14.4 39.4c-4.7 0-10.2 2.2-13.2 4.6l2.7 5.7c2.4-2.2 6.2-4 9.7-4 3.3 0 5.1 1.1 5.1 3.3 0 1.5-1.2 2.2-3.5 2.5C6.7 52.6 0 54.9 0 61.5c0 5.2 3.7 8.4 9.5 8.4 4.1 0 7.8-2.3 9.6-5.3V69h7.7V50.2c0-7.7-5.4-10.8-12.4-10.8zm-2.9 24.4c-2.2 0-3.2-1.1-3.2-2.8 0-3.3 3.6-4.4 10.3-5.1 0 4.4-3 7.9-7.1 7.9zM91.7 40.2V69h8.2V55.1c0-6.6 4-8.5 6.8-8.5 1.1 0 2.6.3 3.5 1l1.5-7.6c-1.3-.5-2.6-.7-3.7-.7-4.2 0-6.9 1.9-8.7 5.7v-4.8h-7.6zM150 39.4c-4.4 0-7.6 2.6-9.3 5.1a9.6 9.6 0 00-8.9-5.1 9.5 9.5 0 00-8.8 5.2v-4.4h-7.9V69h8.2V54.2c0-5.3 2.8-7.9 5.4-7.9 2.4 0 4.5 1.5 4.5 5.5V69h8.2V54.2c0-5.4 2.7-7.9 5.4-7.9 2.2 0 4.5 1.6 4.5 5.4V69h8.2V49.1c.1-6.5-4.2-9.7-9.5-9.7zM71.7 40.2h-7.5v-2.9c0-3.8 2.2-4.9 4.1-4.9 2.1 0 3.7.9 3.7.9l2.5-5.8s-2.6-1.7-7.3-1.7c-5.3 0-11.3 3-11.3 12.3v2.1H43.5v-2.9c0-3.8 2.2-4.9 4.1-4.9 1.1 0 2.5.2 3.7.9l2.5-5.8c-1.5-.9-4-1.7-7.3-1.7-5.3 0-11.3 3-11.3 12.3v2.1h-4.8v6.4h4.8V69h8.2V46.6H56V69h8.2V46.6h7.5v-6.4zM76.6 40.2h8.2V69h-8.2z"/>
+          <path fill="#4A4AF4" d="M124.6 0a50.2 50.2 0 00-47.7 35.3H85a42.2 42.2 0 0139.6-27.8c23.1 0 43 17.6 43 44.9a57 57 0 01-2.3 16.6h7.8l.1-.3a65 65 0 001.9-16.3A50.3 50.3 0 00124.6 0z"/>
+        </svg>
+        <button class="afm-nav-btn" aria-label="Help" title="Help">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 2.75a9.25 9.25 0 100 18.5 9.25 9.25 0 000-18.5zM1.25 12C1.25 6.063 6.063 1.25 12 1.25S22.75 6.063 22.75 12 17.937 22.75 12 22.75 1.25 17.937 1.25 12zM13 16a1 1 0 11-2 0 1 1 0 012 0zm-2.25-6a1.25 1.25 0 112.5 0v.121c0 .364-.145.713-.402.97L11.47 12.47a.75.75 0 101.06 1.06l1.379-1.378a2.871 2.871 0 00.841-2.03V10a2.75 2.75 0 10-5.5 0v.5a.75.75 0 001.5 0V10z" fill="#0C0C14"/></svg>
+        </button>
+      </div>
+
+      <div class="afm-progress" id="afm-progress">
+        <div class="afm-prog-step current"><span>Verify</span></div>
+        <div class="afm-prog-step"><span>Pick a plan</span></div>
+        <div class="afm-prog-step"><span>Review details</span></div>
+      </div>
+
+      <div class="afm-screen" id="afm-screen-verify">
+        <h1 class="afm-h1">Verify it's you</h1>
+        <p class="afm-sub">Enter the code we texted to <b>(•••) •••-3729</b> to continue your purchase with Affirm.</p>
+        <div class="afm-code">
+          <span class="filled">1</span><span class="filled">2</span><span class="filled">3</span><span class="filled">4</span><span class="filled">5</span><span class="filled">6</span>
+        </div>
+        <div class="afm-resend">Didn't get a code? <a>Resend</a></div>
+        <button class="afm-btn" id="afm-continue">Continue</button>
+        <p class="afm-fineprint" id="afm-verify-fineprint">Sandbox verification — code is prefilled for this demo. No SMS is sent. Type "123456" for the verification pin.</p>
+      </div>
+
+      <div class="afm-screen hidden" id="afm-screen-terms">
+        <div class="afm-amount">
+          <span class="afm-amount-k">Purchase amount</span>
+          <span class="afm-amount-v" id="afm-amount-val">$329.38</span>
+        </div>
+        <h1 class="afm-h1">Choose a payment plan</h1>
+        <p class="afm-sub">We're not big on fees, so we don't charge any.</p>
+        <div class="afm-plan" id="afm-plan">
+          <div class="afm-plan-row afm-selected" data-plan="p4">
+            <div class="afm-radio on"></div>
+            <div class="afm-plan-body">
+              <span class="afm-badge">0% APR</span>
+              <div class="afm-plan-mo"><b>$82.35</b>/payment · 4 payments</div>
+              <div class="afm-plan-sub">Every 2 weeks · $0 interest · $0 due today</div>
+            </div>
+          </div>
+          <div class="afm-plan-row" data-plan="p3">
+            <div class="afm-radio"></div>
+            <div class="afm-plan-body">
+              <span class="afm-badge">0% APR</span>
+              <div class="afm-plan-mo"><b>$109.79</b>/mo · 3 months</div>
+              <div class="afm-plan-sub">$0 interest · $0 due today</div>
+            </div>
+          </div>
+          <div class="afm-plan-row" data-plan="p6">
+            <div class="afm-radio"></div>
+            <div class="afm-plan-body">
+              <span class="afm-badge alt">Lowest monthly payment</span>
+              <div class="afm-plan-mo"><b>$57.85</b>/mo · 6 months</div>
+              <div class="afm-plan-sub">15% APR · $0 due today</div>
+            </div>
+          </div>
+        </div>
+        <div class="afm-total"><span>Total of payments</span><span class="afm-total-v">$329.38</span></div>
+        <p class="afm-fineprint"><a>Plans are subject</a> to final eligibility and approval. Illustrative terms — simulated.</p>
+        <button class="afm-btn" id="affirm-confirm">Choose this plan</button>
+        <button class="afm-cancel" id="affirm-cancel">Cancel and pay another way</button>
+      </div>
+
+      <div class="afm-sandbox">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 2.75a9.25 9.25 0 100 18.5 9.25 9.25 0 000-18.5zM1.25 12C1.25 6.063 6.063 1.25 12 1.25S22.75 6.063 22.75 12 17.937 22.75 12 22.75 1.25 17.937 1.25 12zM12 10.25a.75.75 0 01.75.75v5a.75.75 0 01-1.5 0v-5a.75.75 0 01.75-.75zM12 9a1 1 0 100-2 1 1 0 000 2z" fill="#0C0C14"/></svg>
+        <div class="afm-sandbox-t" id="afm-sandbox-t"><b>You are currently using the Affirm Developer Sandbox.</b> This checkout does not create real loans. Type "123456" for the verification pin.</div>
+      </div>
+    </div>
+    <div class="status-bar">
+      <span class="live-dot"></span>
+      <span>Embedded Affirm checkout · simulated (no live connection)</span>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ─────────────────────────────────────────────────────────────────
+   CONFIG — SIMULATION BUILD. No live API calls / credentials. Every
+   response below is canned, illustrative test data. The two flows
+   mirror the Affirm SDK calls in the referenced megafiddle:
+     • Direct API: affirm.checkout(obj) → affirm.checkout.open()
+                   → POST checkout_token to user_confirmation_url
+                   → server-side Authorize / Capture / Void / Refund
+     • VCN:        affirm.checkout.open_vcn({ success, error, checkout_data })
+                   → success(card_details) → charge the virtual card
+─────────────────────────────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════════
+   DEMO_CONFIG — EDIT THIS BLOCK TO REBRAND THE DEMO
+   ───────────────────────────────────────────────────────────────────
+   Everything a partner needs to make this their own merchant demo lives
+   here. Prices are in DOLLARS; the engine converts to cents and keeps the
+   storefront, the Affirm checkout object, and the API logs perfectly in
+   sync (subtotal/discounts/tax → total are all computed, never hardcoded).
+   You should not need to touch any code below this block.
+═══════════════════════════════════════════════════════════════════ */
+const DEMO_CONFIG = {
+  // ── Brand / look & feel ──────────────────────────────────────────
+  brand: {
+    shortName:   'Northwind',                 // header chip (left of "× affirm")
+    storeName:   'Northwind Outfitters',      // storefront name + checkout object merchant.name
+    accent:      '#0E7C66',                   // primary merchant color
+    accentDark:  '#0A5C4C',                   // darker shade (hovers, header strip)
+    affirmAccent:'#4A4AF4',                   // Affirm brand accent (usually leave as-is)
+    searchPlaceholder: 'Search outdoor gear…',
+    subnav: ['Free 2-day shipping', '30-day returns']
+  },
+
+  // ── Cart (prices in dollars) ─────────────────────────────────────
+  cart: {
+    items: [
+      { name: 'Trailhead 65L Hiking Backpack', sku: 'TRH-65', qty: 1, price: 189.99, emoji: '🎒' },
+      { name: 'Summit 800-Fill Down Jacket',   sku: 'SDJ-22', qty: 1, price: 129.99, emoji: '🧥' }
+    ],
+    // Order-summary adjustments. amount is in dollars; negative = a discount.
+    // code/checkoutName control how it appears in the Affirm checkout object's `discounts`.
+    adjustments: [
+      { label: 'Returning customer 5%',  amount: -5.00,  code: 'RETURN5',   checkoutName: 'Returning customer 5% discount' },
+      { label: "President's Day 10% off", amount: -10.00, code: 'PRESDAY10', checkoutName: "President's Day 10% off" }
+    ],
+    shipping: 0,        // 0 renders as "FREE"
+    tax: 24.40,
+    currency: 'USD'
+  },
+
+  // ── Identifiers used across the checkout object + API logs ────────
+  ids: {
+    publicApiKey:  'SJ0WQVUAV9FPV3Z5',
+    orderId:       'NW-10231',          // merchant identifier (your order_id, in the checkout object)
+    transactionId: 'KQ7R-4821',         // Affirm transaction / loan id (format ABCD-1234)
+    checkoutToken: '7Y2C0K9QW3ZB1A5R',  // returned by onSuccess / open_vcn
+    checkoutId:    'CO9KQ2VR7TX1'        // Affirm checkout_id on the Authorize response
+  },
+
+  // ── Buyer (shipping + billing in the checkout object) ────────────
+  customer: {
+    name: { first: 'Joe', last: 'Doe' },
+    address: { line1: '633 Folsom St', line2: 'Floor 7', city: 'San Francisco', state: 'CA', zipcode: '94107', country: 'USA' },
+    phone_number: '4153334567', email: 'joedoe@example.com'
+  },
+
+  // ── Sample virtual card returned by the VCN success callback ──────
+  card: {
+    number: '4111 1148 2032 7751',
+    cvv: '386',
+    expiration: '08/29',
+    cardholder_name: 'AffirmInc testing profile',
+    charge_ari: 'MFFO-VIIT',
+    billing_address: { line1: '650 California St.', line2: '12th Floor', city: 'San Francisco', state: 'CA', zipcode: '94108' }
+  },
+
+  // ── Misc ─────────────────────────────────────────────────────────
+  sandboxPin: '123456',
+  metadata: { platform_type: 'northwind-web', shipping_type: 'UPS Ground' },
+  urls: {
+    confirm: 'https://northwind.example.com/affirm/confirm',
+    cancel:  'https://northwind.example.com/affirm/cancel'
+  }
+};
+
+/* ═══════════════════════════════════════════════════════════════════
+   Derived values — computed from DEMO_CONFIG (do not edit below)
+═══════════════════════════════════════════════════════════════════ */
+const toCents  = (d) => Math.round(d * 100);
+const money    = (c) => '$' + (c / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+const PUBLIC_API_KEY = DEMO_CONFIG.ids.publicApiKey;
+const ORDER_ID       = DEMO_CONFIG.ids.orderId;
+const TXN_ID         = DEMO_CONFIG.ids.transactionId;
+const CHECKOUT_TOKEN = DEMO_CONFIG.ids.checkoutToken;
+const SANDBOX_PIN    = DEMO_CONFIG.sandboxPin;
+
+const ITEMS    = DEMO_CONFIG.cart.items.map(i => ({ ...i, cents: toCents(i.price) }));
+const ADJ      = DEMO_CONFIG.cart.adjustments.map(a => ({ ...a, cents: toCents(a.amount) }));
+const SUBTOTAL = ITEMS.reduce((s, i) => s + i.cents * i.qty, 0);
+const ADJ_SUM  = ADJ.reduce((s, a) => s + a.cents, 0);
+const SHIP_CENTS = toCents(DEMO_CONFIG.cart.shipping || 0);
+const TAX_CENTS  = toCents(DEMO_CONFIG.cart.tax || 0);
+const ORDER_TOTAL = SUBTOTAL + ADJ_SUM + SHIP_CENTS + TAX_CENTS;   // single source of truth
+const TOTAL_QTY  = ITEMS.reduce((s, i) => s + i.qty, 0);
+
+// Illustrative payment-plan amounts, derived from the total.
+const PAY4 = Math.round(ORDER_TOTAL / 4);                          // pay-in-4 (0% APR, biweekly)
+const PLAN_3MO = Math.round(ORDER_TOTAL / 3);                      // 3 months (0% APR)
+const PLAN_6MO = (() => {                                          // 6 months @ 15% APR (amortized)
+  const r = 0.15 / 12;
+  return Math.round(ORDER_TOTAL * r / (1 - Math.pow(1 + r, -6)));
+})();
+const LOWAS = PAY4;                                                // "As low as $X/mo" headline
+
+function buildDiscounts() {
+  const out = {};
+  ADJ.forEach((a, i) => {
+    out[a.code || ('DISC' + (i + 1))] = {
+      discount_amount: Math.abs(a.cents),
+      discount_display_name: a.checkoutName || a.label
+    };
+  });
+  return out;
+}
+
+// Common checkout object (matches the megafiddle structure).
+const baseCheckout = (extraMerchant) => ({
+  merchant: Object.assign({ name: DEMO_CONFIG.brand.storeName }, extraMerchant),
+  shipping: { name: DEMO_CONFIG.customer.name, address: DEMO_CONFIG.customer.address, phone_number: DEMO_CONFIG.customer.phone_number, email: DEMO_CONFIG.customer.email },
+  billing:  { name: DEMO_CONFIG.customer.name, address: DEMO_CONFIG.customer.address, phone_number: DEMO_CONFIG.customer.phone_number, email: DEMO_CONFIG.customer.email },
+  items: ITEMS.map(i => ({ display_name: i.name, sku: i.sku, unit_price: i.cents, qty: i.qty })),
+  discounts: buildDiscounts(),
+  metadata: DEMO_CONFIG.metadata,
+  order_id: ORDER_ID,
+  shipping_amount: SHIP_CENTS,
+  tax_amount: TAX_CENTS,
+  total: ORDER_TOTAL
+});
+
+// Direct API: affirm.checkout(...) payload. Result is handled via the
+// onSuccess / onFail callbacks on affirm.checkout.open(); user_confirmation_url /
+// user_cancel_url remain as a redirect fallback.
+const DIRECT_CHECKOUT = baseCheckout({
+  user_confirmation_url: DEMO_CONFIG.urls.confirm,
+  user_cancel_url: DEMO_CONFIG.urls.cancel,
+  user_confirmation_url_action: 'POST'
+});
+
+// VCN: affirm.checkout.open_vcn({ checkout_data: ... }). use_vcn: true tells Affirm
+// to generate virtual card details on loan origination (per the VCN checkout docs).
+const VCN_CHECKOUT = baseCheckout({ use_vcn: true });
+
+// Direct API — what Affirm returns to user_confirmation_url, then the Authorize response.
+const AUTH_RESPONSE = {
+  id: TXN_ID,
+  amount: ORDER_TOTAL,
+  amount_refunded: 0,
+  authorization_expiration: '2026-06-12T18:04:11Z',
+  checkout_id: DEMO_CONFIG.ids.checkoutId,
+  currency: DEMO_CONFIG.cart.currency,
+  order_id: ORDER_ID,
+  provider_id: 1,
+  events: [{ id: 'ev_8821', type: 'auth', amount: ORDER_TOTAL, created: '2026-06-05T18:04:11Z' }],
+  status: 'authorized',
+  created: '2026-06-05T18:04:11Z'
+};
+
+// VCN — what the success(card_details) callback receives.
+const CARD_DETAILS = {
+  number: DEMO_CONFIG.card.number,
+  cvv: DEMO_CONFIG.card.cvv,
+  expiration: DEMO_CONFIG.card.expiration,
+  cardholder_name: DEMO_CONFIG.card.cardholder_name,
+  checkout_token: CHECKOUT_TOKEN,
+  charge_ari: DEMO_CONFIG.card.charge_ari,
+  billing_address: DEMO_CONFIG.card.billing_address
+};
+
+/* ─────────────────────────────────────────────────────────────────
+   FLOWS — two orchestration scripts
+─────────────────────────────────────────────────────────────────── */
+const FLOWS = {
+  direct: [
+    { actors: ['member','mfe'], kind: 'click', label: 'Shopper clicks "Pay with affirm"',
+      desc: 'The shopper picks Affirm at checkout. The merchant frontend prepares the checkout object and launches Affirm.' },
+    { actors: ['mfe','affe'], kind: 'sdk_checkout', label: 'Frontend: affirm.checkout(obj) → affirm.checkout.open({ onSuccess, onFail })',
+      desc: 'The merchant frontend passes the checkout object to affirm.checkout(), then opens the hosted checkout with onSuccess / onFail callbacks so Affirm.js returns the result directly in the browser.' },
+    { actors: ['affe','member'], kind: 'open_modal', label: 'Affirm Checkout UI opens',
+      desc: 'Affirm renders its hosted checkout. Affirm validates the verified address/phone and name/price format before the loan can be confirmed.' },
+    { actors: ['member','affe'], kind: 'modal_flow', wait: true, label: 'Shopper verifies & confirms the loan',
+      desc: `Happy path: the shopper confirms Affirm's terms (sandbox PIN ${SANDBOX_PIN}) and onSuccess fires. Cancel path: closing the modal fires onFail and the shopper picks another payment method.` },
+    { actors: ['affe','mfe'], kind: 'checkout_success', label: 'Affirm.js onSuccess(checkout_response) → checkout_token',
+      desc: 'On confirm, Affirm.js invokes the onSuccess callback in the browser with checkout_response.checkout_token. (On cancel/decline, onFail is called with an error instead.) The frontend forwards the token to the backend to authorize.' },
+    { actors: ['mbe','afbe'], kind: 'authorize', label: 'Backend → Affirm: Authorize (POST /transactions)',
+      desc: 'The frontend forwards the checkout_token to the backend, which exchanges it for a real charge by calling the Authorization API server-to-server with private-key Basic auth.' },
+    { actors: ['afbe','mbe'], kind: 'authorize_response', label: 'Affirm returns the Transaction object {id, amount}',
+      desc: 'Affirm returns the authorized transaction. id (= transaction id = loan id) is AFFIRM\'s identifier — the merchant stores it and uses it for capture / void / refund. order_id is the MERCHANT\'s own identifier that was passed in the checkout object and is echoed back.' },
+    { actors: ['mbe','mfe'], kind: 'create_order', label: 'Validate auth → create order → show confirmation',
+      desc: 'The backend validates the auth response, records "Affirm" as the payment method with the transaction id, creates the order, and tells the frontend to show confirmation.' },
+    { actors: ['mfe','member'], kind: 'thank_you', label: 'Shopper sees the order confirmation',
+      desc: 'Order placed and authorized. Use the back-office card on the left to Capture (on fulfillment), Void (auth only), or Refund the Affirm transaction.' }
+  ],
+  vcn: [
+    { actors: ['member','mfe'], kind: 'click', label: 'Shopper clicks "Pay with affirm"',
+      desc: 'The shopper picks Affirm. With VCN, the merchant calls open_vcn and will receive a virtual card to run through its existing card processor.' },
+    { actors: ['mfe','affe'], kind: 'sdk_vcn', label: 'Frontend: affirm.checkout.open_vcn({ success, error, checkout_data })',
+      desc: 'The merchant frontend opens the Affirm VCN checkout, passing the checkout_data plus success / error callbacks (no user_confirmation_url is needed).' },
+    { actors: ['affe','member'], kind: 'open_modal', label: 'Affirm Checkout UI opens',
+      desc: 'Affirm renders its hosted checkout and validates the shopper details before the loan can be confirmed.' },
+    { actors: ['member','affe'], kind: 'modal_flow', wait: true, label: 'Shopper verifies & confirms the loan',
+      desc: `Happy path: the shopper confirms Affirm's terms (sandbox PIN ${SANDBOX_PIN}). Cancel path: closing the modal fires the error callback and the shopper picks another payment method.` },
+    { actors: ['affe','mfe'], kind: 'vcn_success', label: 'success(card_details) — Affirm issues a virtual card',
+      desc: 'Affirm calls the success callback with card_details: a one-time virtual card number, expiration, CVV and billing address tied to the approved loan.' },
+    { actors: ['mfe','mbe'], kind: 'fill_card', label: 'Frontend → Backend: hand off the virtual card',
+      desc: 'The merchant drops the virtual card into its normal payment form / order, exactly as if the shopper had typed in a credit card.' },
+    { actors: ['mbe','pp'], kind: 'processor_auth', label: 'Backend → Payment Processor: authorize the card',
+      desc: 'The merchant\'s existing processor (Stripe / Cybersource / first-party) authorizes the Affirm virtual card like any other Visa card.' },
+    { actors: ['pp','mbe'], kind: 'processor_response', label: 'Processor approves the charge',
+      desc: 'Standard card approval. From the processor\'s point of view this is an ordinary card auth — Affirm\'s involvement is invisible to the rest of the pipeline.' },
+    { actors: ['mbe','mfe'], kind: 'create_order', label: 'Create order → show confirmation',
+      desc: 'The backend records "Affirm" as the payment method, creates the order, and tells the frontend to show confirmation.' },
+    { actors: ['mfe','member'], kind: 'thank_you', label: 'Shopper sees the order confirmation',
+      desc: 'Order placed. The Affirm loan and virtual card are finalized; capture / refund happen through the merchant\'s normal card processor.' }
+  ]
+};
+
+// Affirm documentation links surfaced next to each Affirm request/response.
+const DOCS = {
+  open:      { url: 'https://docs.affirm.com/developers/docs/open-affirm-checkout',                 label: 'Open Affirm Checkout' },
+  authorize: { url: 'https://docs.affirm.com/developers/reference/authorize_transaction',           label: 'Authorize Transaction' },
+  capture:   { url: 'https://docs.affirm.com/developers/reference/capture_transaction',             label: 'Capture Transaction' },
+  voidTxn:   { url: 'https://docs.affirm.com/developers/reference/void_transaction',                label: 'Void Transaction' },
+  refund:    { url: 'https://docs.affirm.com/developers/reference/refund_transaction',              label: 'Refund Transaction' },
+  vcn:       { url: 'https://docs.affirm.com/developers/docs/open-affirm-virtual-card-checkout',    label: 'Open Affirm Virtual Card Checkout' }
+};
+
+const ACTOR_NAMES = {
+  member: 'Shopper', mfe: 'Merchant-FE', mbe: 'Merchant-BE',
+  affe: 'Affirm Checkout', afbe: 'Affirm-API', pp: 'PaymentProc'
+};
+
+/* ─────────────────────────────────────────────────────────────────
+   STATE
+─────────────────────────────────────────────────────────────────── */
+let STEPS = FLOWS.direct;
+const state = {
+  flow: 'direct',
+  idx: -1,
+  playing: false,
+  awaitingUser: false,
+  replaying: false,
+  replayTarget: -1,
+  modalOpen: false,
+  modalConfirmed: false,
+  cancelling: false,
+  captured: false,
+  voided: false,
+  refunded: false,
+  speedMs: 1400,
+  timer: null,
+  _modalResolver: null
+};
+
+const $ = (sel) => document.querySelector(sel);
+const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+
+/* ─────────────────────────────────────────────────────────────────
+   Sequence rendering
+─────────────────────────────────────────────────────────────────── */
+function buildSeqList() {
+  $('#seq-list').innerHTML = STEPS.map((s, i) => {
+    const [from, to] = s.actors;
+    return `
+      <div class="seq-step" data-idx="${i}">
+        <div class="num"><span>${i + 1}</span></div>
+        <div class="meta">
+          <div class="actors">
+            <span class="actor ${from}">${ACTOR_NAMES[from]}</span>
+            <span class="arrow">━━▶</span>
+            <span class="actor ${to}">${ACTOR_NAMES[to]}</span>
+          </div>
+          <div class="label">${escapeHtml(s.label)}</div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function renderCurrentStep() {
+  const s = STEPS[state.idx];
+  if (state.idx < 0) {
+    $('#cur-step-num').textContent = 'Idle';
+    $('#cur-step-label').textContent = 'Pick a flow, then click "Auto-play" or "Step".';
+    $('#cur-step-desc').textContent = state.flow === 'direct'
+      ? 'Direct API: Affirm authorizes a loan, the merchant authorizes/captures the charge via Affirm\'s Transaction API.'
+      : 'VCN: Affirm issues a one-time virtual card the merchant runs through its existing card processor.';
+  } else if (state.idx >= STEPS.length) {
+    $('#cur-step-num').textContent = 'Complete';
+    $('#cur-step-label').textContent = '✅ Flow complete';
+    $('#cur-step-desc').textContent = state.flow === 'direct'
+      ? 'Order authorized. Try the back-office actions (Capture / Void / Refund), or switch flows / Reset.'
+      : 'Order placed. Switch to the Direct API flow or hit Reset to run it again.';
+  } else {
+    $('#cur-step-num').textContent = `Step ${state.idx + 1} / ${STEPS.length}`;
+    $('#cur-step-label').textContent = s.label;
+    $('#cur-step-desc').textContent = s.desc;
+  }
+  $$('#seq-list .seq-step').forEach((el, i) => {
+    el.classList.toggle('active', i === state.idx);
+    el.classList.toggle('done', i < state.idx);
+  });
+  if (state.idx >= 0 && state.idx < STEPS.length) {
+    const node = $(`#seq-list .seq-step[data-idx="${state.idx}"]`);
+    if (node) node.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   Log helpers
+─────────────────────────────────────────────────────────────────── */
+function clearLog() { $('#log').innerHTML = '<div class="log-empty">API requests and backend events will appear here as the flow runs.</div>'; }
+function firstLog() { const e = $('#log .log-empty'); if (e) e.remove(); }
+function logDivider(text) { firstLog(); const log = $('#log'); log.insertAdjacentHTML('beforeend', `<div class="log-divider">${escapeHtml(text)}</div>`); log.scrollTop = log.scrollHeight; }
+function docLinkHtml(doc) {
+  if (!doc) return '';
+  return `<a class="doc-link" href="${doc.url}" target="_blank" rel="noopener">📖 Affirm docs: ${escapeHtml(doc.label)}</a>`;
+}
+function logEvent(kind, title, detail = '', doc = null) {
+  firstLog(); const log = $('#log');
+  log.insertAdjacentHTML('beforeend', `
+    <div class="log-event ${kind}">
+      <div class="ev-title">${escapeHtml(title)}</div>
+      ${detail ? `<div class="ev-detail">${escapeHtml(detail)}</div>` : ''}
+      ${docLinkHtml(doc)}
+    </div>`);
+  log.scrollTop = log.scrollHeight;
+}
+function logApi({ method, endpoint, payload, response, status, durationMs, note, doc }) {
+  firstLog(); const log = $('#log');
+  const okClass = status >= 200 && status < 300 ? 'ok' : 'err';
+  log.insertAdjacentHTML('beforeend', `
+    <div class="log-entry">
+      <div class="head">
+        <span class="method ${method}">${method}</span>
+        <span class="endpoint">${escapeHtml(endpoint)}</span>
+        <span class="status ${okClass}">${status}</span>
+        <span class="duration">· ${durationMs}ms</span>
+      </div>
+      ${payload  ? `<pre class="json">▼ Request body\n${syntaxJson(payload)}</pre>` : ''}
+      ${response ? `<pre class="json">▲ Response body\n${syntaxJson(response)}</pre>` : ''}
+      ${note ? `<div class="note">${escapeHtml(note)}</div>` : ''}
+      ${docLinkHtml(doc)}
+    </div>`);
+  log.scrollTop = log.scrollHeight;
+}
+function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function syntaxJson(obj) {
+  return escapeHtml(JSON.stringify(obj, null, 2))
+    .replace(/(&quot;[^&]+?&quot;)(\s*:)/g, '<span class="key">$1</span>$2')
+    .replace(/: (&quot;[^]*?&quot;)/g, ': <span class="str">$1</span>')
+    .replace(/: (-?\d+\.?\d*)/g, ': <span class="num">$1</span>')
+    .replace(/: (true|false)/g, ': <span class="bool">$1</span>')
+    .replace(/: (null)/g, ': <span class="null">$1</span>');
+}
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+/* ─────────────────────────────────────────────────────────────────
+   Step runners
+─────────────────────────────────────────────────────────────────── */
+async function runStep(step) {
+  switch (step.kind) {
+    case 'click':
+      logEvent('user', '👆 Shopper clicked "Pay with affirm"', `Cart total: ${money(ORDER_TOTAL)} · ${TOTAL_QTY} items`);
+      $('#btn-pay').disabled = true;
+      $('#member-status').classList.remove('hidden');
+      $('#member-status-val').textContent = 'Launching Affirm checkout…';
+      break;
+
+    case 'sdk_checkout':
+      logDivider('Affirm.js · affirm.checkout(data)');
+      logApi({
+        method: 'POST', endpoint: 'affirm.checkout(data)',
+        payload: DIRECT_CHECKOUT, status: 200, durationMs: 8,
+        note: 'The checkout OBJECT — the order data (merchant, billing, shipping, items, order_id, totals) sent to Affirm. This is the only place order data lives.',
+        doc: DOCS.open
+      });
+      logDivider('Affirm.js · affirm.checkout.open({ onSuccess, onFail })');
+      logApi({
+        method: 'POST', endpoint: 'affirm.checkout.open({ onSuccess, onFail })',
+        payload: { onSuccess: 'fn(checkout_response)', onFail: 'fn(error)' },
+        status: 200, durationMs: 4,
+        note: 'A SEPARATE call that opens the hosted checkout. onSuccess / onFail are JavaScript callbacks (handlers, not order data, NOT part of the checkout object): Affirm.js calls onSuccess with checkout_response.checkout_token when the shopper confirms, or onFail with an error on cancel/decline.',
+        doc: DOCS.open
+      });
+      break;
+
+    case 'sdk_vcn':
+      logDivider('Affirm.js · affirm.checkout.open_vcn()');
+      logApi({
+        method: 'POST', endpoint: 'affirm.checkout.open_vcn({ success, error, checkout_data })',
+        payload: { checkout_data: VCN_CHECKOUT, success: 'fn(card_details)', error: 'fn(error_response)' },
+        status: 200, durationMs: 12,
+        note: 'Client-side SDK call. checkout_data includes use_vcn: true so Affirm generates a virtual card on loan origination. There is no user_confirmation_url — Affirm returns the card directly to the success callback in the browser.',
+        doc: DOCS.vcn
+      });
+      break;
+
+    case 'open_modal':
+      if (state.replaying && state.idx < state.replayTarget) break;
+      openModal(state.flow === 'vcn'
+        ? 'https://sandbox.affirm.com/u/vcn/' + CHECKOUT_TOKEN
+        : 'https://sandbox.affirm.com/u/checkout/' + AUTH_RESPONSE.checkout_id);
+      $('#member-status-val').textContent = 'Affirm checkout open · waiting for the shopper to confirm.';
+      logEvent('user', '⏳ Awaiting shopper action in the Affirm modal', 'Click "Choose this plan" to confirm (happy path) or "Cancel" to take the cancel path.');
+      break;
+
+    case 'modal_flow':
+      if (state.replaying && state.idx < state.replayTarget) break;
+      if (!state.modalOpen && !state.modalConfirmed) {
+        openModal(state.flow === 'vcn'
+          ? 'https://sandbox.affirm.com/u/vcn/' + CHECKOUT_TOKEN
+          : 'https://sandbox.affirm.com/u/checkout/' + AUTH_RESPONSE.checkout_id);
+      }
+      showProcessing();
+      if (state.modalConfirmed) break;
+      state.awaitingUser = true;
+      return new Promise((resolve) => { state._modalResolver = resolve; });
+
+    /* ---- Direct API ---- */
+    case 'checkout_success':
+      logDivider('Affirm.js · onSuccess(checkout_response)');
+      logApi({
+        method: 'POST', endpoint: 'onSuccess(checkout_response)  ◀  Affirm.js browser callback',
+        response: { checkout_token: CHECKOUT_TOKEN, created: '2026-06-05T18:04:09Z' },
+        status: 200, durationMs: 0,
+        note: 'Affirm.js fires onSuccess in the browser with checkout_response.checkout_token. (If the shopper cancels or is declined, onFail(error) fires instead.) The frontend POSTs this token to its backend to authorize the charge.',
+        doc: DOCS.open
+      });
+      logEvent('affirm', '◀ Affirm.js onSuccess fired', `checkout_token: ${CHECKOUT_TOKEN}`, DOCS.open);
+      break;
+
+    case 'authorize': {
+      logDivider('POST · Affirm Authorization API');
+      const t0 = performance.now();
+      if (!state.replaying) await sleep(420 + Math.random()*280);
+      logApi({
+        method: 'POST', endpoint: 'https://api.affirm.com/api/v1/transactions',
+        payload: { transaction_id: CHECKOUT_TOKEN, order_id: ORDER_ID },
+        response: AUTH_RESPONSE, status: 201, durationMs: state.replaying ? 540 : Math.round(performance.now()-t0),
+        note: 'Server-to-server with private-key Basic auth. The request transaction_id is the checkout_token from onSuccess; order_id is the merchant\'s identifier from the checkout object. The response id is Affirm\'s transaction / loan id and is echoed back with order_id.',
+        doc: DOCS.authorize
+      });
+      break;
+    }
+
+    case 'authorize_response':
+      logEvent('affirm', '◀ Affirm returned an authorized transaction', `id / loan id (Affirm): ${TXN_ID} · order_id (merchant): ${ORDER_ID} · amount: ${money(ORDER_TOTAL)} · status: authorized`, DOCS.authorize);
+      $('#member-status-val').textContent = 'Loan authorized · creating order…';
+      break;
+
+    /* ---- VCN ---- */
+    case 'vcn_success':
+      logDivider('Affirm.js · success(card_details)');
+      logApi({
+        method: 'POST', endpoint: 'success(card_details)  ◀  Affirm virtual card issued',
+        response: CARD_DETAILS, status: 200, durationMs: 0,
+        note: 'The success callback receives a one-time virtual card. number / expiration / cvv populate the merchant\'s normal card fields. (Charge ARI ties the card to the Affirm loan.)',
+        doc: DOCS.vcn
+      });
+      logEvent('affirm', '◀ Affirm issued a virtual card', `•••• ${CARD_DETAILS.number.slice(-4)} · exp ${CARD_DETAILS.expiration}`, DOCS.vcn);
+      break;
+
+    case 'fill_card':
+      logEvent('merchant', '⇄ Frontend → Backend: virtual card handed to order', 'The VCN is placed into the existing payment form, just like a typed-in card.');
+      $('#member-status-val').textContent = 'Virtual card received · authorizing…';
+      break;
+
+    case 'processor_auth': {
+      logDivider('POST · Payment processor (card auth)');
+      const t0 = performance.now();
+      if (!state.replaying) await sleep(420 + Math.random()*300);
+      logApi({
+        method: 'POST', endpoint: 'https://api.processor.com/v1/payment_intents',
+        payload: {
+          amount: ORDER_TOTAL, currency: 'usd',
+          card: { number: '•••• •••• •••• ' + CARD_DETAILS.number.slice(-4), exp: CARD_DETAILS.expiration, cvc: '***', name: CARD_DETAILS.cardholder_name },
+          metadata: { order_id: ORDER_ID, affirm_charge_ari: CARD_DETAILS.charge_ari }
+        },
+        response: { id: 'pi_3PabcXYZ', status: 'succeeded', amount: ORDER_TOTAL, network: 'visa', avs: 'Y', cvc_check: 'pass' },
+        status: 200, durationMs: state.replaying ? 510 : Math.round(performance.now()-t0),
+        note: 'Standard card authorization. The processor sees an ordinary Visa — Affirm involvement is invisible. Capture / refund later run through the processor, not Affirm.'
+      });
+      break;
+    }
+
+    case 'processor_response':
+      logEvent('processor', '◀ Processor approved the charge', 'Standard card auth response · network: visa');
+      $('#member-status-val').textContent = 'Payment approved · creating order…';
+      break;
+
+    /* ---- shared ---- */
+    case 'create_order':
+      logEvent('merchant', '🧾 Order created', `Payment method: Affirm · order_id (merchant): ${ORDER_ID}` + (state.flow === 'direct' ? ` · txn / loan id (Affirm): ${TXN_ID}` : ''));
+      break;
+
+    case 'thank_you':
+      logEvent('system', '🎉 Order placed', 'Shopper sees the confirmation screen.');
+      $('#processing').classList.add('hidden');
+      $('#member-status').classList.add('hidden');
+      $('#thankyou').classList.remove('hidden');
+      $('#order-id').textContent = ORDER_ID;
+      if (state.flow === 'direct') openBackoffice();
+      break;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   Modal helpers
+─────────────────────────────────────────────────────────────────── */
+function openModal(url) {
+  state.modalOpen = true;
+  state.modalConfirmed = false;
+  $('#modal-overlay').classList.remove('hidden');
+  $('#modal-url').textContent = url;
+  resetAffirmScreens();
+}
+function closeModal() {
+  state.modalOpen = false;
+  $('#modal-overlay').classList.add('hidden');
+}
+function showProcessing() {
+  $('#member-status').classList.add('hidden');
+  $('#processing').classList.remove('hidden');
+}
+function setAfmProgress(active) {
+  const order = { verify: 0, plan: 1, review: 2 }[active] ?? 0;
+  $$('#afm-progress .afm-prog-step').forEach((el, i) => {
+    el.classList.toggle('current', i === order);
+    el.classList.toggle('done', i < order);
+  });
+}
+function selectAffirmPlan(row) {
+  $$('#afm-plan .afm-plan-row').forEach(r => {
+    const on = r === row;
+    r.classList.toggle('afm-selected', on);
+    r.querySelector('.afm-radio').classList.toggle('on', on);
+  });
+}
+function resetAffirmScreens() {
+  $('#afm-screen-verify').classList.remove('hidden');
+  $('#afm-screen-terms').classList.add('hidden');
+  setAfmProgress('verify');
+  const first = $('#afm-plan .afm-plan-row');
+  if (first) selectAffirmPlan(first);
+}
+
+function onAffirmConfirmed() {
+  if (!state.modalOpen) return;
+  closeModal();
+  state.awaitingUser = false;
+  state.modalConfirmed = true;
+  logEvent('user', '✅ Shopper confirmed the Affirm loan', 'Accepted Affirm\'s terms in the embedded checkout (happy path).');
+  if (state._modalResolver) { state._modalResolver(); state._modalResolver = null; }
+  if (!state.playing) setTimeout(() => advance(), 0);
+}
+function onAffirmCancelled() {
+  if (!state.modalOpen) return;
+  state.awaitingUser = false;
+  state.cancelling = true;
+  closeModal();
+  if (state._modalResolver) { state._modalResolver(); state._modalResolver = null; }
+  logEvent('affirm', '✖ Affirm checkout cancelled', state.flow === 'direct'
+    ? 'Shopper closed Affirm without confirming. Affirm.js calls onFail(error); no checkout_token is returned and no transaction is created.'
+    : 'Shopper closed Affirm without confirming. The error callback fires; no virtual card was issued.');
+  cancelToStart();
+}
+function cancelToStart() {
+  pause();
+  state.idx = -1;
+  state.modalConfirmed = false;
+  closeModal();
+  $('#member-status').classList.add('hidden');
+  $('#processing').classList.add('hidden');
+  $('#thankyou').classList.add('hidden');
+  $('#backoffice').classList.add('hidden');
+  $('#choose-payment').classList.remove('hidden');
+  $('#btn-pay').disabled = false;
+  renderCurrentStep();
+  setButtons();
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   Back-office (Direct API transaction management)
+─────────────────────────────────────────────────────────────────── */
+function openBackoffice() {
+  state.captured = false; state.voided = false; state.refunded = false;
+  $('#bo-txn').textContent = TXN_ID;
+  setBoPill('authorized', 'Authorized');
+  $('#bo-capture').disabled = false;
+  $('#bo-void').disabled = false;
+  $('#bo-refund').disabled = true;
+  $('#bo-partial').disabled = true;
+  $('#backoffice').classList.remove('hidden');
+}
+function setBoPill(cls, text) {
+  const p = $('#bo-pill');
+  p.className = 'pill ' + cls;
+  p.textContent = text;
+}
+function boCapture() {
+  if (state.captured || state.voided) return;
+  state.captured = true;
+  logDivider('POST · Capture transaction');
+  logApi({
+    method: 'POST', endpoint: `https://api.affirm.com/api/v1/transactions/${TXN_ID}/capture`,
+    response: { id: TXN_ID, status: 'captured', amount: ORDER_TOTAL, fee: 1318, currency: 'USD', type: 'capture' },
+    status: 201, durationMs: 360 + Math.round(Math.random()*200),
+    note: 'Simplest standard capture — POST to the transaction id, no body required. Capture settles the funds, typically at fulfillment. After capture you can Refund but no longer Void.',
+    doc: DOCS.capture
+  });
+  setBoPill('captured', 'Captured');
+  $('#bo-capture').disabled = true;
+  $('#bo-void').disabled = true;
+  $('#bo-refund').disabled = false;
+  $('#bo-partial').disabled = false;
+}
+function boVoid() {
+  if (state.captured || state.voided) return;
+  state.voided = true;
+  logDivider('POST · Void transaction');
+  logApi({
+    method: 'POST', endpoint: `https://api.affirm.com/api/v1/transactions/${TXN_ID}/void`,
+    response: { id: TXN_ID, status: 'voided', amount: ORDER_TOTAL, currency: 'USD', type: 'void' },
+    status: 201, durationMs: 300 + Math.round(Math.random()*180),
+    note: 'Void releases an authorization that was never captured (auth-only). The loan is cancelled and the shopper owes nothing.',
+    doc: DOCS.voidTxn
+  });
+  setBoPill('voided', 'Voided');
+  $('#bo-capture').disabled = true;
+  $('#bo-void').disabled = true;
+  $('#bo-refund').disabled = true;
+  $('#bo-partial').disabled = true;
+}
+function boRefund(amount, partial) {
+  if (!state.captured) return;
+  logDivider('POST · Refund transaction');
+  logApi({
+    method: 'POST', endpoint: `https://api.affirm.com/api/v1/transactions/${TXN_ID}/refund`,
+    payload: { amount },
+    response: { id: TXN_ID, status: partial ? 'partially_refunded' : 'refunded', amount_refunded: amount, currency: 'USD', type: 'refund' },
+    status: 201, durationMs: 320 + Math.round(Math.random()*200),
+    note: partial ? 'Partial refund — pass amount to return part of the captured total to the shopper\'s Affirm loan.' : 'Full refund — omit amount (or pass the full total) to return everything and close the loan.',
+    doc: DOCS.refund
+  });
+  if (partial) {
+    setBoPill('part', 'Partially refunded');
+    $('#bo-partial').disabled = true;
+  } else {
+    state.refunded = true;
+    setBoPill('refunded', 'Refunded');
+    $('#bo-refund').disabled = true;
+    $('#bo-partial').disabled = true;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   Playback loop
+─────────────────────────────────────────────────────────────────── */
+async function advance() {
+  if (state.awaitingUser) return;
+  if (state.idx >= STEPS.length - 1) {
+    state.idx = STEPS.length;
+    state.playing = false;
+    renderCurrentStep();
+    setButtons();
+    return;
+  }
+  state.idx++;
+  renderCurrentStep();
+  setButtons();
+  try { await runStep(STEPS[state.idx]); }
+  catch (e) { console.error(e); state.playing = false; setButtons(); return; }
+  if (state.cancelling) { state.cancelling = false; return; }
+  if (state.playing) state.timer = setTimeout(advance, state.speedMs);
+}
+function play() { if (state.idx >= STEPS.length - 1) return; state.playing = true; setButtons(); advance(); }
+function pause() { state.playing = false; if (state.timer) clearTimeout(state.timer); setButtons(); }
+function step() {
+  if (state.awaitingUser) return;
+  if (state.playing) pause();
+  if (state.idx >= STEPS.length - 1) return;
+  advance();
+}
+function back() {
+  if (state.awaitingUser || state.idx < 0) return;
+  goTo(state.idx - 1);
+}
+function hideStorefrontStates() {
+  $('#member-status').classList.add('hidden');
+  $('#processing').classList.add('hidden');
+  $('#thankyou').classList.add('hidden');
+  $('#backoffice').classList.add('hidden');
+  $('#choose-payment').classList.add('hidden');
+  $('#btn-pay').disabled = false;
+}
+// Rewind/replay to any step: re-run steps 0..target-1 instantly (no delays, no
+// interactive modal), then run the target step live so it shows its real visual.
+async function goTo(targetIdx) {
+  pause();
+  targetIdx = Math.max(-1, Math.min(targetIdx, STEPS.length - 1));
+  state.awaitingUser = false;
+  state.cancelling = false;
+  state._modalResolver = null;
+  closeModal();
+  clearLog();
+  hideStorefrontStates();
+  const mfi = STEPS.findIndex(s => s.kind === 'modal_flow');
+  state.modalConfirmed = targetIdx > mfi;     // treat the modal as confirmed only once we're past it
+  state.replaying = true;
+  state.replayTarget = targetIdx;
+  state.idx = -1;
+  for (let i = 0; i < targetIdx; i++) { state.idx = i; await runStep(STEPS[i]); }
+  state.replaying = false;
+  if (targetIdx >= 0) { state.idx = targetIdx; await runStep(STEPS[targetIdx]); }
+  if (state.cancelling) { state.cancelling = false; return; }
+  renderCurrentStep();
+  setButtons();
+}
+function reset() {
+  pause();
+  state.idx = -1;
+  state.awaitingUser = false;
+  state.replaying = false;
+  state.modalConfirmed = false;
+  state.cancelling = false;
+  clearLog();
+  hideStorefrontStates();
+  $('#choose-payment').classList.add('hidden');
+  closeModal();
+  renderCurrentStep();
+  setButtons();
+}
+function setButtons() {
+  const atEnd = state.idx >= STEPS.length - 1;
+  $('#btn-back').disabled = state.playing || state.awaitingUser || state.idx < 0;
+  $('#btn-step').disabled = state.playing || state.awaitingUser || atEnd;
+  $('#btn-play').disabled = atEnd;
+  $('#btn-play').textContent = state.playing ? '⏸ Pause' : (state.idx === -1 ? '▶ Auto-play' : '▶ Resume');
+}
+
+function setFlow(flow) {
+  if (flow === state.flow) return;
+  state.flow = flow;
+  STEPS = FLOWS[flow];
+  $$('#flow-toggle button').forEach(b => b.classList.toggle('on', b.dataset.flow === flow));
+  $('#int-note').innerHTML = flow === 'direct'
+    ? 'Integration: <b>Direct API</b> — <code>affirm.checkout()</code> → confirm → server-side <code>authorize</code>'
+    : 'Integration: <b>Virtual Card (VCN)</b> — <code>affirm.checkout.open_vcn()</code> → charge the virtual card';
+  buildSeqList();
+  reset();
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   Apply DEMO_CONFIG to the storefront (brand, cart, totals, modal, pin)
+─────────────────────────────────────────────────────────────────── */
+function setPlanRow(plan, amount, suffix) {
+  const el = $(`.afm-plan-row[data-plan="${plan}"] .afm-plan-mo`);
+  if (el) el.innerHTML = `<b>${amount}</b>${suffix}`;
+}
+function applyConfig() {
+  const b = DEMO_CONFIG.brand, rs = document.documentElement.style;
+  rs.setProperty('--merch', b.accent);
+  rs.setProperty('--merch-dark', b.accentDark);
+  rs.setProperty('--affirm-accent', b.affirmAccent);
+  document.title = `${b.storeName} × Affirm — integration demo`;
+
+  $('.brand .merch').textContent = b.shortName;
+  $('.merch-name').textContent = b.storeName;
+  $('.merch-search').textContent = b.searchPlaceholder;
+  $('.merch-cart .count').textContent = TOTAL_QTY;
+  $('.merch-subnav').innerHTML = b.subnav.map(s => `<span>${escapeHtml(s)}</span>`).join('<span>·</span>');
+  $('.cart-heading').innerHTML = `Your cart <span>(${TOTAL_QTY} item${TOTAL_QTY !== 1 ? 's' : ''})</span>`;
+
+  $('#cart-items').innerHTML = ITEMS.map(i => `
+    <div class="product">
+      <div class="thumb">${i.emoji || '📦'}</div>
+      <div class="info">
+        <div class="name">${escapeHtml(i.name)}</div>
+        <div class="sku">SKU ${escapeHtml(i.sku)} · Qty ${i.qty}</div>
+        <div class="price">${money(i.cents * i.qty)}</div>
+      </div>
+    </div>`).join('');
+
+  const rows = [`<div class="row"><span>Subtotal</span><span>${money(SUBTOTAL)}</span></div>`];
+  ADJ.forEach(a => rows.push(`<div class="row discount"><span>${escapeHtml(a.label)}</span><span>−${money(Math.abs(a.cents))}</span></div>`));
+  rows.push(`<div class="row"><span>Shipping</span><span>${SHIP_CENTS ? money(SHIP_CENTS) : 'FREE'}</span></div>`);
+  rows.push(`<div class="row"><span>Tax</span><span>${money(TAX_CENTS)}</span></div>`);
+  rows.push(`<div class="row total"><span>Total</span><span>${money(ORDER_TOTAL)}</span></div>`);
+  rows.push(`<div class="affirm-blurb">As low as <b>${money(LOWAS)}/mo</b> with <span class="affirm-name">Affirm</span></div>`);
+  $('#totals').innerHTML = rows.join('');
+
+  $('#afm-amount-val').textContent = money(ORDER_TOTAL);
+  $('.afm-total-v').textContent = money(ORDER_TOTAL);
+  setPlanRow('p4', money(PAY4), '/payment · 4 payments');
+  setPlanRow('p3', money(PLAN_3MO), '/mo · 3 months');
+  setPlanRow('p6', money(PLAN_6MO), '/mo · 6 months');
+
+  $('#afm-verify-fineprint').textContent = `Sandbox verification — code is prefilled for this demo. No SMS is sent. Type "${SANDBOX_PIN}" for the verification pin.`;
+  $('#afm-sandbox-t').innerHTML = `<b>You are currently using the Affirm Developer Sandbox.</b> This checkout does not create real loans. Type "${SANDBOX_PIN}" for the verification pin.`;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   Wire up
+─────────────────────────────────────────────────────────────────── */
+applyConfig();
+buildSeqList();
+renderCurrentStep();
+setButtons();
+
+$('#flow-toggle').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-flow]');
+  if (btn) setFlow(btn.dataset.flow);
+});
+$('#btn-play').addEventListener('click', () => state.playing ? pause() : play());
+$('#btn-step').addEventListener('click', step);
+$('#btn-back').addEventListener('click', back);
+$('#btn-reset').addEventListener('click', reset);
+$('#seq-list').addEventListener('click', (e) => {
+  const el = e.target.closest('.seq-step');
+  if (el && !state.playing && !state.awaitingUser) goTo(Number(el.dataset.idx));
+});
+$('#btn-pay').addEventListener('click', () => {
+  $('#choose-payment').classList.add('hidden');
+  if (state.idx === -1) play();
+});
+$('#btn-close-modal').addEventListener('click', () => onAffirmCancelled());
+$('#afm-nav-close').addEventListener('click', () => onAffirmCancelled());
+$('#afm-continue').addEventListener('click', () => {
+  $('#afm-screen-verify').classList.add('hidden');
+  $('#afm-screen-terms').classList.remove('hidden');
+  setAfmProgress('plan');
+});
+$$('#afm-plan .afm-plan-row').forEach(r => r.addEventListener('click', () => selectAffirmPlan(r)));
+$('#affirm-confirm').addEventListener('click', () => onAffirmConfirmed());
+$('#affirm-cancel').addEventListener('click', () => onAffirmCancelled());
+$('#bo-capture').addEventListener('click', boCapture);
+$('#bo-void').addEventListener('click', boVoid);
+$('#bo-refund').addEventListener('click', () => boRefund(ORDER_TOTAL, false));
+$('#bo-partial').addEventListener('click', () => boRefund(5000, true));
+$('#speed').addEventListener('input', (e) => { state.speedMs = Number(e.target.value); });
+</script>
+</body>
+</html>
