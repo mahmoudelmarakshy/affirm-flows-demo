@@ -90,6 +90,21 @@ computed). To screenshot a completed flow, inject a driver before `</script>`:
 
 Any static host works — it's one file.
 
+## Publish internally (QuickHost, optional)
+
+For sharing with the **Affirm team** (not external merchants), publish to QuickHost,
+Affirm's internal SPCS static hosting behind Okta SSO. This is **optional** and is
+**not required** to use this skill.
+
+Don't reimplement the upload here — defer to the separate **`quickhost`** skill
+(plugin `quickhost@affirm-builders`). Once it's installed, just say
+"upload this to quickhost" / "update the quickhost demo". The demo is
+self-contained, so no CDN inlining is needed.
+
+One-time setup: `claude plugin install quickhost@affirm-builders` and
+`brew install snowflake-cli`. (For external/merchant sharing, use GitHub Pages
+above — QuickHost links only open for authenticated Affirm users.)
+
 ## Rules
 
 - Keep it **single-file**. Don't split into separate JS/CSS unless asked.
