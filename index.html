@@ -133,6 +133,22 @@
   .cta button { width: 100%; padding: 12px; font-size: 14px; }
   .cta .int-note { margin-top: 8px; font-size: 11px; color: var(--muted); text-align: center; line-height: 1.4; }
   .cta .int-note b { color: var(--affirm-accent); }
+  /* Demo configuration popover */
+  .config-pop { position: fixed; top: 56px; right: 16px; width: 330px; z-index: 1200;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+    box-shadow: 0 14px 36px rgba(0,0,0,.20); font-size: 12px; color: var(--text); }
+  .config-pop.hidden { display: none; }
+  .config-head { display: flex; align-items: center; justify-content: space-between;
+    padding: 11px 14px; border-bottom: 1px solid var(--border); font-weight: 700; }
+  .config-head button { border: 0; background: transparent; cursor: pointer; font-size: 15px; color: var(--muted); line-height: 1; }
+  .config-group { padding: 12px 14px; }
+  .config-label { font-weight: 700; font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  .config-sub { margin: 5px 0 4px; color: var(--muted); line-height: 1.45; }
+  .config-opt { display: flex; gap: 9px; align-items: flex-start; padding: 9px 10px; border: 1px solid var(--border);
+    border-radius: 9px; margin-top: 8px; cursor: pointer; line-height: 1.4; }
+  .config-opt:hover { background: var(--panel-2); }
+  .config-opt input { margin-top: 2px; flex: 0 0 auto; }
+  .config-opt code { font-size: 11px; }
   .affirm-blurb {
     margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--border);
     color: var(--muted); font-size: 13px; text-align: right;
@@ -331,9 +347,38 @@
     <button id="btn-step" disabled title="Advance one step">⏭ Step</button>
     <button id="btn-play" class="btn-primary">▶ Auto-play</button>
     <button id="btn-reset" title="Reset the demo">↻ Reset</button>
+    <button id="btn-config" title="Demo configuration">⚙ Config</button>
     <span class="speed">Speed <input type="range" id="speed" min="500" max="3000" step="250" value="1400" /></span>
   </div>
 </header>
+
+<!-- Demo configuration popover -->
+<div id="config-pop" class="config-pop hidden" role="dialog" aria-label="Demo configuration">
+  <div class="config-head">
+    <span>⚙ Demo configuration</span>
+    <button id="config-close" title="Close">✕</button>
+  </div>
+  <div class="config-group">
+    <div class="config-label">VCN card retrieval</div>
+    <p class="config-sub">How the merchant receives the Affirm virtual card. Applies to the <b>Virtual Card (VCN)</b> flow.</p>
+    <label class="config-opt">
+      <input type="radio" name="vcnmode" value="client">
+      <span><b>Client-side</b> — <code>affirm.checkout.open_vcn()</code> returns the card to the browser <code>success()</code> callback.</span>
+    </label>
+    <label class="config-opt">
+      <input type="radio" name="vcnmode" value="server">
+      <span><b>Server-side</b> — standard <code>checkout.open()</code>, then the backend exchanges the token via <code>POST /checkout/{token}/vcn</code>.</span>
+    </label>
+  </div>
+  <div class="config-group" style="border-top:1px solid var(--border)">
+    <div class="config-label">Merchant vertical</div>
+    <p class="config-sub">Travel merchants must pass an <code>itinerary</code> object on every checkout.</p>
+    <label class="config-opt">
+      <input type="checkbox" id="cfg-travel">
+      <span><b>Travel merchant</b> — add the <b>required</b> <code>itinerary</code> object to the checkout and flag it as mandatory in the log. <a href="https://docs.affirm.com/developers/reference/the-itinerary-object" target="_blank" rel="noopener">Itinerary docs ↗</a></span>
+    </label>
+  </div>
+</div>
 
 <main>
   <!-- ─── LEFT: shopper / merchant view ─── -->
@@ -584,6 +629,33 @@ const DEMO_CONFIG = {
     billing_address: { line1: '650 California St.', line2: '12th Floor', city: 'San Francisco', state: 'CA', zipcode: '94108' }
   },
 
+  // ── VCN handoff pattern ──────────────────────────────────────────
+  // How the merchant receives the Affirm virtual card. Both are valid:
+  //   'client' = affirm.checkout.open_vcn(); the card is returned to the
+  //              browser success() callback (use_vcn: true on the object).
+  //   'server' = standard affirm.checkout.open() → onSuccess(checkout_token),
+  //              then the backend exchanges the token for card credentials via
+  //              POST /api/v2/checkout/{token}/vcn (card never touches the browser).
+  // This sets the default; viewers can also flip it live with the VCN toggle.
+  vcnMode: 'client',
+
+  // ── Travel merchant (itinerary object) ───────────────────────────
+  // When enabled, the checkout object carries the itinerary object, which is
+  // MANDATORY for all travel checkouts — Affirm uses it for fraud / identity
+  // underwriting. Toggle live via the ⚙ Config popover.
+  // Ref: https://docs.affirm.com/developers/reference/the-itinerary-object
+  travel: {
+    enabled: false,
+    itinerary: {
+      travel_type: 'flight',        // flight | hotel | car_rental | cruise | event
+      departure_time: '2026-07-12T08:00:00',
+      arrival_time:   '2026-07-12T14:00:00',
+      origin:      { city: 'New York',    country: 'US', airport_code: 'JFK' },
+      destination: { city: 'Los Angeles', country: 'US', airport_code: 'LAX' },
+      passengers: [ { name: { first: 'Joe', last: 'Doe' }, ticket_number: 'AA123456' } ]
+    }
+  },
+
   // ── Misc ─────────────────────────────────────────────────────────
   sandboxPin: '123456',
   metadata: { platform_type: 'northwind-web', shipping_type: 'UPS Ground' },
@@ -623,6 +695,9 @@ const PLAN_6MO = (() => {                                          // 6 months @
 })();
 const LOWAS = PAY4;                                                // "As low as $X/mo" headline
 
+const ITINERARY      = DEMO_CONFIG.travel.itinerary;
+const TRAVEL_DEFAULT = !!DEMO_CONFIG.travel.enabled;
+
 function buildDiscounts() {
   const out = {};
   ADJ.forEach((a, i) => {
@@ -634,32 +709,60 @@ function buildDiscounts() {
   return out;
 }
 
-// Common checkout object (matches the megafiddle structure).
-const baseCheckout = (extraMerchant) => ({
-  merchant: Object.assign({ name: DEMO_CONFIG.brand.storeName }, extraMerchant),
-  shipping: { name: DEMO_CONFIG.customer.name, address: DEMO_CONFIG.customer.address, phone_number: DEMO_CONFIG.customer.phone_number, email: DEMO_CONFIG.customer.email },
-  billing:  { name: DEMO_CONFIG.customer.name, address: DEMO_CONFIG.customer.address, phone_number: DEMO_CONFIG.customer.phone_number, email: DEMO_CONFIG.customer.email },
-  items: ITEMS.map(i => ({ display_name: i.name, sku: i.sku, unit_price: i.cents, qty: i.qty })),
-  discounts: buildDiscounts(),
-  metadata: DEMO_CONFIG.metadata,
-  order_id: ORDER_ID,
-  shipping_amount: SHIP_CENTS,
-  tax_amount: TAX_CENTS,
-  total: ORDER_TOTAL
-});
+// Common checkout object (matches the megafiddle structure). When the demo is in
+// travel-merchant mode, the REQUIRED itinerary object is appended.
+const baseCheckout = (extraMerchant) => {
+  const obj = {
+    merchant: Object.assign({ name: DEMO_CONFIG.brand.storeName }, extraMerchant),
+    shipping: { name: DEMO_CONFIG.customer.name, address: DEMO_CONFIG.customer.address, phone_number: DEMO_CONFIG.customer.phone_number, email: DEMO_CONFIG.customer.email },
+    billing:  { name: DEMO_CONFIG.customer.name, address: DEMO_CONFIG.customer.address, phone_number: DEMO_CONFIG.customer.phone_number, email: DEMO_CONFIG.customer.email },
+    items: ITEMS.map(i => ({ display_name: i.name, sku: i.sku, unit_price: i.cents, qty: i.qty })),
+    discounts: buildDiscounts(),
+    metadata: DEMO_CONFIG.metadata,
+    order_id: ORDER_ID,
+    shipping_amount: SHIP_CENTS,
+    tax_amount: TAX_CENTS,
+    total: ORDER_TOTAL
+  };
+  // itinerary is mandatory for travel merchants (fraud / identity underwriting).
+  if (state.travel) obj.itinerary = ITINERARY;
+  return obj;
+};
 
-// Direct API: affirm.checkout(...) payload. Result is handled via the
-// onSuccess / onFail callbacks on affirm.checkout.open(); user_confirmation_url /
-// user_cancel_url remain as a redirect fallback.
-const DIRECT_CHECKOUT = baseCheckout({
-  user_confirmation_url: DEMO_CONFIG.urls.confirm,
-  user_cancel_url: DEMO_CONFIG.urls.cancel,
-  user_confirmation_url_action: 'POST'
-});
+// Checkout payloads — recomputed by rebuildCheckouts() so the travel toggle takes
+// effect live. DIRECT_CHECKOUT also backs the server-mode VCN flow.
+let DIRECT_CHECKOUT, VCN_CHECKOUT;
+function rebuildCheckouts() {
+  // Direct API: affirm.checkout(...) → onSuccess / onFail on affirm.checkout.open().
+  DIRECT_CHECKOUT = baseCheckout({
+    user_confirmation_url: DEMO_CONFIG.urls.confirm,
+    user_cancel_url: DEMO_CONFIG.urls.cancel,
+    user_confirmation_url_action: 'POST'
+  });
+  // VCN (client mode): affirm.checkout.open_vcn({ checkout_data }). use_vcn: true
+  // tells Affirm to generate virtual card details on loan origination.
+  VCN_CHECKOUT = baseCheckout({ use_vcn: true });
+}
+// NOTE: not called here — `state` is declared further down (TDZ). The startup
+// wire-up calls rebuildCheckouts() once `state` exists, and setTravel() re-runs it.
 
-// VCN: affirm.checkout.open_vcn({ checkout_data: ... }). use_vcn: true tells Affirm
-// to generate virtual card details on loan origination (per the VCN checkout docs).
-const VCN_CHECKOUT = baseCheckout({ use_vcn: true });
+// Direct API — the Authorize request body. Beyond transaction_id + order_id, Affirm
+// now REQUIRES currency, total, shipping and items so it can re-validate the order
+// server-side against the original checkout and detect client-side tampering / fraud.
+// Ref: https://docs.affirm.com/developers/reference/authorize_transaction
+const AUTH_REQUEST = {
+  transaction_id: CHECKOUT_TOKEN,   // short-lived checkout token (from onSuccess)
+  order_id: ORDER_ID,               // merchant's own order identifier
+  currency: DEMO_CONFIG.cart.currency,
+  total: ORDER_TOTAL,               // lowest denomination (cents)
+  shipping: {
+    name: DEMO_CONFIG.customer.name,
+    address: DEMO_CONFIG.customer.address,
+    phone_number: DEMO_CONFIG.customer.phone_number,
+    email: DEMO_CONFIG.customer.email
+  },
+  items: ITEMS.map(i => ({ item: { display_name: i.name, sku: i.sku, unit_price: i.cents, qty: i.qty } }))
+};
 
 // Direct API — what Affirm returns to user_confirmation_url, then the Authorize response.
 const AUTH_RESPONSE = {
@@ -687,6 +790,21 @@ const CARD_DETAILS = {
   billing_address: DEMO_CONFIG.card.billing_address
 };
 
+const VCN_MODE_DEFAULT = DEMO_CONFIG.vcnMode === 'server' ? 'server' : 'client';
+
+// VCN (server mode) — what the backend token-exchange (POST /checkout/{token}/vcn)
+// returns. PAN/CVV are masked here exactly as you should treat them in real logs.
+const VCN_EXCHANGE_RESPONSE = {
+  id: TXN_ID,
+  card_number: '•••• •••• •••• ' + DEMO_CONFIG.card.number.replace(/\s/g, '').slice(-4),
+  cvv: '***',
+  expiration: DEMO_CONFIG.card.expiration.replace('/', ''),
+  cardholder_name: DEMO_CONFIG.card.cardholder_name,
+  balance: ORDER_TOTAL,
+  charge_ari: DEMO_CONFIG.card.charge_ari,
+  billing: DEMO_CONFIG.card.billing_address
+};
+
 /* ─────────────────────────────────────────────────────────────────
    FLOWS — two orchestration scripts
 ─────────────────────────────────────────────────────────────────── */
@@ -711,7 +829,8 @@ const FLOWS = {
     { actors: ['mfe','member'], kind: 'thank_you', label: 'Shopper sees the order confirmation',
       desc: 'Order placed and authorized. Use the back-office card on the left to Capture (on fulfillment), Void (auth only), or Refund the Affirm transaction.' }
   ],
-  vcn: [
+  // VCN, client mode: affirm.checkout.open_vcn() → card in the browser success() callback.
+  vcnClient: [
     { actors: ['member','mfe'], kind: 'click', label: 'Shopper clicks "Pay with affirm"',
       desc: 'The shopper picks Affirm. With VCN, the merchant calls open_vcn and will receive a virtual card to run through its existing card processor.' },
     { actors: ['mfe','affe'], kind: 'sdk_vcn', label: 'Frontend: affirm.checkout.open_vcn({ success, error, checkout_data })',
@@ -732,6 +851,30 @@ const FLOWS = {
       desc: 'The backend records "Affirm" as the payment method, creates the order, and tells the frontend to show confirmation.' },
     { actors: ['mfe','member'], kind: 'thank_you', label: 'Shopper sees the order confirmation',
       desc: 'Order placed. The Affirm loan and virtual card are finalized; capture / refund happen through the merchant\'s normal card processor.' }
+  ],
+  // VCN, server mode: standard checkout.open() → onSuccess(checkout_token) →
+  // backend POST /checkout/{token}/vcn returns the card (never the browser).
+  vcnServer: [
+    { actors: ['member','mfe'], kind: 'click', label: 'Shopper clicks "Pay with affirm"',
+      desc: 'The shopper picks Affirm. In the server-side VCN pattern the storefront uses the standard Affirm checkout; the virtual card is fetched later by the backend.' },
+    { actors: ['mfe','affe'], kind: 'sdk_checkout', label: 'Frontend: affirm.checkout(obj) → affirm.checkout.open({ onSuccess, onFail })',
+      desc: 'Frontend setup is identical to Direct API: pass the checkout object to affirm.checkout(), then open the hosted checkout with onSuccess / onFail. There is no use_vcn flag — the card comes from the backend token exchange.' },
+    { actors: ['affe','member'], kind: 'open_modal', label: 'Affirm Checkout UI opens',
+      desc: 'Affirm renders its hosted checkout and validates the shopper details before the loan can be confirmed.' },
+    { actors: ['member','affe'], kind: 'modal_flow', wait: true, label: 'Shopper verifies & confirms the loan',
+      desc: `Happy path: the shopper confirms Affirm's terms (sandbox PIN ${SANDBOX_PIN}) and onSuccess fires. Cancel path: closing the modal fires onFail and no token is returned.` },
+    { actors: ['affe','mfe'], kind: 'checkout_success', label: 'Affirm.js onSuccess(checkout_response) → checkout_token',
+      desc: 'On confirm, Affirm.js invokes onSuccess in the browser with checkout_response.checkout_token. The frontend forwards the token to the backend to exchange for a virtual card.' },
+    { actors: ['mbe','afbe'], kind: 'vcn_exchange', label: 'Backend → Affirm: exchange token for VCN (POST /checkout/{token}/vcn)',
+      desc: 'The backend exchanges the short-lived checkout_token for virtual card credentials via the VCN API (server-to-server, private-key Basic auth). The card is returned to the backend — never the browser.' },
+    { actors: ['mbe','pp'], kind: 'processor_auth', label: 'Backend → Payment Processor: authorize the card',
+      desc: 'The merchant\'s existing processor (Stripe / Cybersource / first-party) authorizes the Affirm virtual card like any other Visa card.' },
+    { actors: ['pp','mbe'], kind: 'processor_response', label: 'Processor approves the charge',
+      desc: 'Standard card approval. From the processor\'s point of view this is an ordinary card auth — Affirm\'s involvement is invisible to the rest of the pipeline.' },
+    { actors: ['mbe','mfe'], kind: 'create_order', label: 'Create order → show confirmation',
+      desc: 'The backend records "Affirm" as the payment method, creates the order, and tells the frontend to show confirmation.' },
+    { actors: ['mfe','member'], kind: 'thank_you', label: 'Shopper sees the order confirmation',
+      desc: 'Order placed. The Affirm loan and virtual card are finalized; capture / refund happen through the merchant\'s normal card processor.' }
   ]
 };
 
@@ -742,7 +885,8 @@ const DOCS = {
   capture:   { url: 'https://docs.affirm.com/developers/reference/capture_transaction',             label: 'Capture Transaction' },
   voidTxn:   { url: 'https://docs.affirm.com/developers/reference/void_transaction',                label: 'Void Transaction' },
   refund:    { url: 'https://docs.affirm.com/developers/reference/refund_transaction',              label: 'Refund Transaction' },
-  vcn:       { url: 'https://docs.affirm.com/developers/docs/open-affirm-virtual-card-checkout',    label: 'Open Affirm Virtual Card Checkout' }
+  vcn:       { url: 'https://docs.affirm.com/developers/docs/open-affirm-virtual-card-checkout',    label: 'Open Affirm Virtual Card Checkout' },
+  itinerary: { url: 'https://docs.affirm.com/developers/reference/the-itinerary-object',           label: 'The Itinerary Object' }
 };
 
 const ACTOR_NAMES = {
@@ -754,8 +898,16 @@ const ACTOR_NAMES = {
    STATE
 ─────────────────────────────────────────────────────────────────── */
 let STEPS = FLOWS.direct;
+
+// Resolve the active step list for the current flow + VCN mode.
+function stepsForFlow() {
+  if (state.flow === 'vcn') return state.vcnMode === 'server' ? FLOWS.vcnServer : FLOWS.vcnClient;
+  return FLOWS.direct;
+}
 const state = {
   flow: 'direct',
+  vcnMode: VCN_MODE_DEFAULT,
+  travel: TRAVEL_DEFAULT,
   idx: -1,
   playing: false,
   awaitingUser: false,
@@ -845,6 +997,13 @@ function logEvent(kind, title, detail = '', doc = null) {
     </div>`);
   log.scrollTop = log.scrollHeight;
 }
+// Travel merchants: surface that the itinerary object is a hard requirement.
+function logTravelMandatory() {
+  if (!state.travel) return;
+  logEvent('merchant', '🧳 Travel merchant — itinerary object is MANDATORY',
+    `Travel checkouts MUST include the itinerary object (travel_type: ${ITINERARY.travel_type} · ${ITINERARY.origin.airport_code} → ${ITINERARY.destination.airport_code}). Affirm requires it for fraud / identity underwriting — checkouts without it are rejected.`,
+    DOCS.itinerary);
+}
 function logApi({ method, endpoint, payload, response, status, durationMs, note, doc }) {
   firstLog(); const log = $('#log');
   const okClass = status >= 200 && status < 300 ? 'ok' : 'err';
@@ -891,9 +1050,10 @@ async function runStep(step) {
       logApi({
         method: 'POST', endpoint: 'affirm.checkout(data)',
         payload: DIRECT_CHECKOUT, status: 200, durationMs: 8,
-        note: 'The checkout OBJECT — the order data (merchant, billing, shipping, items, order_id, totals) sent to Affirm. This is the only place order data lives.',
+        note: 'The checkout OBJECT — the order data (merchant, billing, shipping, items, order_id, totals) sent to Affirm. This is the only place order data lives.' + (state.travel ? ' Travel merchant: the itinerary object is included and is REQUIRED.' : ''),
         doc: DOCS.open
       });
+      logTravelMandatory();
       logDivider('Affirm.js · affirm.checkout.open({ onSuccess, onFail })');
       logApi({
         method: 'POST', endpoint: 'affirm.checkout.open({ onSuccess, onFail })',
@@ -910,14 +1070,15 @@ async function runStep(step) {
         method: 'POST', endpoint: 'affirm.checkout.open_vcn({ success, error, checkout_data })',
         payload: { checkout_data: VCN_CHECKOUT, success: 'fn(card_details)', error: 'fn(error_response)' },
         status: 200, durationMs: 12,
-        note: 'Client-side SDK call. checkout_data includes use_vcn: true so Affirm generates a virtual card on loan origination. There is no user_confirmation_url — Affirm returns the card directly to the success callback in the browser.',
+        note: 'Client-side SDK call. checkout_data includes use_vcn: true so Affirm generates a virtual card on loan origination. There is no user_confirmation_url — Affirm returns the card directly to the success callback in the browser.' + (state.travel ? ' Travel merchant: checkout_data includes the REQUIRED itinerary object.' : ''),
         doc: DOCS.vcn
       });
+      logTravelMandatory();
       break;
 
     case 'open_modal':
       if (state.replaying && state.idx < state.replayTarget) break;
-      openModal(state.flow === 'vcn'
+      openModal((state.flow === 'vcn' && state.vcnMode === 'client')
         ? 'https://sandbox.affirm.com/u/vcn/' + CHECKOUT_TOKEN
         : 'https://sandbox.affirm.com/u/checkout/' + AUTH_RESPONSE.checkout_id);
       $('#member-status-val').textContent = 'Affirm checkout open · waiting for the shopper to confirm.';
@@ -927,7 +1088,7 @@ async function runStep(step) {
     case 'modal_flow':
       if (state.replaying && state.idx < state.replayTarget) break;
       if (!state.modalOpen && !state.modalConfirmed) {
-        openModal(state.flow === 'vcn'
+        openModal((state.flow === 'vcn' && state.vcnMode === 'client')
           ? 'https://sandbox.affirm.com/u/vcn/' + CHECKOUT_TOKEN
           : 'https://sandbox.affirm.com/u/checkout/' + AUTH_RESPONSE.checkout_id);
       }
@@ -954,10 +1115,10 @@ async function runStep(step) {
       const t0 = performance.now();
       if (!state.replaying) await sleep(420 + Math.random()*280);
       logApi({
-        method: 'POST', endpoint: 'https://api.affirm.com/api/v1/transactions',
-        payload: { transaction_id: CHECKOUT_TOKEN, order_id: ORDER_ID },
+        method: 'POST', endpoint: 'https://api.global.sandbox.affirm.com/api/v1/transactions',
+        payload: AUTH_REQUEST,
         response: AUTH_RESPONSE, status: 201, durationMs: state.replaying ? 540 : Math.round(performance.now()-t0),
-        note: 'Server-to-server with private-key Basic auth. The request transaction_id is the checkout_token from onSuccess; order_id is the merchant\'s identifier from the checkout object. The response id is Affirm\'s transaction / loan id and is echoed back with order_id.',
+        note: 'Server-to-server with private-key Basic auth. transaction_id is the checkout_token from onSuccess; order_id is the merchant\'s identifier. REQUIRED: currency, total, shipping and items must be re-sent on the authorize call so Affirm re-validates the order server-side against the original checkout — this is how client-side tampering / fraud (e.g. a manipulated price or cart in the browser) is detected. The response id is Affirm\'s transaction / loan id, echoed back with order_id.',
         doc: DOCS.authorize
       });
       break;
@@ -984,6 +1145,21 @@ async function runStep(step) {
       logEvent('merchant', '⇄ Frontend → Backend: virtual card handed to order', 'The VCN is placed into the existing payment form, just like a typed-in card.');
       $('#member-status-val').textContent = 'Virtual card received · authorizing…';
       break;
+
+    case 'vcn_exchange': {
+      logDivider('POST · Affirm Virtual Card API');
+      const t0 = performance.now();
+      if (!state.replaying) await sleep(420 + Math.random()*280);
+      logApi({
+        method: 'POST', endpoint: `https://sandbox.affirm.com/api/v2/checkout/${CHECKOUT_TOKEN}/vcn`,
+        response: VCN_EXCHANGE_RESPONSE, status: 200, durationMs: state.replaying ? 540 : Math.round(performance.now()-t0),
+        note: 'Server-to-server with private-key Basic auth; the checkout_token is in the path (no body). Affirm returns one-time virtual card credentials plus a card id. The card stays on the backend — NEVER log the PAN/CVV in production. Capture & refund run through your PSP, not Affirm.',
+        doc: DOCS.vcn
+      });
+      logEvent('affirm', '◀ Affirm returned virtual card credentials', `id: ${VCN_EXCHANGE_RESPONSE.id} · •••• ${CARD_DETAILS.number.replace(/\s/g,'').slice(-4)} · exp ${CARD_DETAILS.expiration}`, DOCS.vcn);
+      $('#member-status-val').textContent = 'Virtual card received · authorizing…';
+      break;
+    }
 
     case 'processor_auth': {
       logDivider('POST · Payment processor (card auth)');
@@ -1081,7 +1257,9 @@ function onAffirmCancelled() {
   if (state._modalResolver) { state._modalResolver(); state._modalResolver = null; }
   logEvent('affirm', '✖ Affirm checkout cancelled', state.flow === 'direct'
     ? 'Shopper closed Affirm without confirming. Affirm.js calls onFail(error); no checkout_token is returned and no transaction is created.'
-    : 'Shopper closed Affirm without confirming. The error callback fires; no virtual card was issued.');
+    : (state.vcnMode === 'server'
+        ? 'Shopper closed Affirm without confirming. Affirm.js calls onFail(error); no checkout_token is returned, so no virtual card is issued.'
+        : 'Shopper closed Affirm without confirming. The error callback fires; no virtual card was issued.'));
   cancelToStart();
 }
 function cancelToStart() {
@@ -1122,7 +1300,7 @@ function boCapture() {
   state.captured = true;
   logDivider('POST · Capture transaction');
   logApi({
-    method: 'POST', endpoint: `https://api.affirm.com/api/v1/transactions/${TXN_ID}/capture`,
+    method: 'POST', endpoint: `https://api.global.sandbox.affirm.com/api/v1/transactions/${TXN_ID}/capture`,
     response: { id: TXN_ID, status: 'captured', amount: ORDER_TOTAL, fee: 1318, currency: 'USD', type: 'capture' },
     status: 201, durationMs: 360 + Math.round(Math.random()*200),
     note: 'Simplest standard capture — POST to the transaction id, no body required. Capture settles the funds, typically at fulfillment. After capture you can Refund but no longer Void.',
@@ -1139,7 +1317,7 @@ function boVoid() {
   state.voided = true;
   logDivider('POST · Void transaction');
   logApi({
-    method: 'POST', endpoint: `https://api.affirm.com/api/v1/transactions/${TXN_ID}/void`,
+    method: 'POST', endpoint: `https://api.global.sandbox.affirm.com/api/v1/transactions/${TXN_ID}/void`,
     response: { id: TXN_ID, status: 'voided', amount: ORDER_TOTAL, currency: 'USD', type: 'void' },
     status: 201, durationMs: 300 + Math.round(Math.random()*180),
     note: 'Void releases an authorization that was never captured (auth-only). The loan is cancelled and the shopper owes nothing.',
@@ -1155,7 +1333,7 @@ function boRefund(amount, partial) {
   if (!state.captured) return;
   logDivider('POST · Refund transaction');
   logApi({
-    method: 'POST', endpoint: `https://api.affirm.com/api/v1/transactions/${TXN_ID}/refund`,
+    method: 'POST', endpoint: `https://api.global.sandbox.affirm.com/api/v1/transactions/${TXN_ID}/refund`,
     payload: { amount },
     response: { id: TXN_ID, status: partial ? 'partially_refunded' : 'refunded', amount_refunded: amount, currency: 'USD', type: 'refund' },
     status: 201, durationMs: 320 + Math.round(Math.random()*200),
@@ -1258,15 +1436,41 @@ function setButtons() {
   $('#btn-play').textContent = state.playing ? '⏸ Pause' : (state.idx === -1 ? '▶ Auto-play' : '▶ Resume');
 }
 
+function intNoteHtml() {
+  if (state.flow === 'direct')
+    return 'Integration: <b>Direct API</b> — <code>affirm.checkout()</code> → confirm → server-side <code>authorize</code>';
+  return state.vcnMode === 'server'
+    ? 'Integration: <b>Virtual Card (VCN)</b> — <code>affirm.checkout.open()</code> → <code>onSuccess(token)</code> → backend <code>POST /checkout/{token}/vcn</code> → charge via your PSP'
+    : 'Integration: <b>Virtual Card (VCN)</b> — <code>affirm.checkout.open_vcn()</code> → card in the browser <code>success()</code> callback → charge via your PSP';
+}
+function syncFlowUI() {
+  $$('#flow-toggle button').forEach(b => b.classList.toggle('on', b.dataset.flow === state.flow));
+  $$('#config-pop input[name="vcnmode"]').forEach(r => { r.checked = r.value === state.vcnMode; });
+  $('#cfg-travel').checked = state.travel;
+  $('#int-note').innerHTML = intNoteHtml();
+}
 function setFlow(flow) {
   if (flow === state.flow) return;
   state.flow = flow;
-  STEPS = FLOWS[flow];
-  $$('#flow-toggle button').forEach(b => b.classList.toggle('on', b.dataset.flow === flow));
-  $('#int-note').innerHTML = flow === 'direct'
-    ? 'Integration: <b>Direct API</b> — <code>affirm.checkout()</code> → confirm → server-side <code>authorize</code>'
-    : 'Integration: <b>Virtual Card (VCN)</b> — <code>affirm.checkout.open_vcn()</code> → charge the virtual card';
+  STEPS = stepsForFlow();
+  syncFlowUI();
   buildSeqList();
+  reset();
+}
+function setVcnMode(mode) {
+  if (mode === state.vcnMode) return;
+  state.vcnMode = mode;
+  if (state.flow === 'vcn') STEPS = stepsForFlow();
+  syncFlowUI();
+  buildSeqList();
+  reset();
+}
+function setTravel(on) {
+  on = !!on;
+  if (on === state.travel) return;
+  state.travel = on;
+  rebuildCheckouts();   // add / remove the itinerary object from the checkout payloads
+  syncFlowUI();
   reset();
 }
 
@@ -1323,6 +1527,8 @@ function applyConfig() {
    Wire up
 ─────────────────────────────────────────────────────────────────── */
 applyConfig();
+rebuildCheckouts();   // apply DEMO_CONFIG.travel.enabled default
+syncFlowUI();
 buildSeqList();
 renderCurrentStep();
 setButtons();
@@ -1331,6 +1537,17 @@ $('#flow-toggle').addEventListener('click', (e) => {
   const btn = e.target.closest('button[data-flow]');
   if (btn) setFlow(btn.dataset.flow);
 });
+function openConfig()  { syncFlowUI(); $('#config-pop').classList.remove('hidden'); }
+function closeConfig() { $('#config-pop').classList.add('hidden'); }
+function toggleConfig(){ $('#config-pop').classList.contains('hidden') ? openConfig() : closeConfig(); }
+$('#btn-config').addEventListener('click', (e) => { e.stopPropagation(); toggleConfig(); });
+$('#config-close').addEventListener('click', closeConfig);
+$('#config-pop').addEventListener('click', (e) => e.stopPropagation());
+$$('#config-pop input[name="vcnmode"]').forEach(r =>
+  r.addEventListener('change', () => setVcnMode(r.value)));
+$('#cfg-travel').addEventListener('change', (e) => setTravel(e.target.checked));
+document.addEventListener('click', () => closeConfig());
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeConfig(); });
 $('#btn-play').addEventListener('click', () => state.playing ? pause() : play());
 $('#btn-step').addEventListener('click', step);
 $('#btn-back').addEventListener('click', back);

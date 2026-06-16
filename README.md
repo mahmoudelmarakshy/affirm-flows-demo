@@ -80,7 +80,9 @@ total, so the storefront and the checkout object can’t drift apart.
 | `cart` | `shipping` (0 = FREE), `tax`, `currency` | Shipping/tax rows + totals math |
 | `ids` | `publicApiKey`, `orderId`, `transactionId`, `checkoutToken`, `checkoutId` | Identifiers shown in the logs (merchant `order_id` vs Affirm `id`/loan id) |
 | `customer` | `name`, `address`, `phone_number`, `email` | `shipping`/`billing` in the checkout object |
-| `card` | `number`, `cvv`, `expiration`, `cardholder_name`, `charge_ari`, `billing_address` | Sample VCN returned by the `success` callback |
+| `card` | `number`, `cvv`, `expiration`, `cardholder_name`, `charge_ari`, `billing_address` | Sample VCN returned by the `success` callback / token exchange |
+| `vcnMode` | `'client'` or `'server'` | Default VCN handoff pattern: `client` = `affirm.checkout.open_vcn()` returns the card to the browser `success()` callback; `server` = standard `checkout.open()` → `onSuccess(token)` → backend `POST /checkout/{token}/vcn`. Viewers can also flip this live in the ⚙ Config popover. |
+| `travel` | `enabled`, `itinerary{}` | Travel-merchant mode. When on, the checkout object carries the **required** `itinerary` object (`travel_type`, `departure_time`/`arrival_time`, `origin`/`destination`, `passengers[]`) and the log flags it as mandatory. Toggle live in the ⚙ Config popover. See [the Itinerary Object](https://docs.affirm.com/developers/reference/the-itinerary-object). |
 | `sandboxPin`, `metadata`, `urls` | — | Verification pin text, checkout `metadata`, Direct API confirm/cancel URLs |
 
 Everything below `DEMO_CONFIG` is the engine — you shouldn’t need to touch it.
@@ -121,6 +123,15 @@ To add a step: add an entry to the flow array and a matching `case` in
 - [Open Affirm Checkout](https://docs.affirm.com/developers/docs/open-affirm-checkout)
 - [Open Affirm Virtual Card Checkout](https://docs.affirm.com/developers/docs/open-affirm-virtual-card-checkout)
 - [Managing transactions](https://docs.affirm.com/developers/docs/managing-transactions)
+
+### Authoritative endpoint reference (captured from Affirm's Integration Guide Generator)
+
+These are generated, copy-pasteable integration guides used to keep this demo's
+endpoints and payloads accurate:
+
+- [USA — Direct Checkout (Transactions API)](docs/integration-guide-usa-direct.md)
+- [USA — Virtual Card (VCN)](docs/integration-guide-usa-vcn.md)
+- [Travel vertical — itinerary object (+ insurance)](docs/integration-guide-travel-itinerary.md)
 
 ---
 
