@@ -248,9 +248,11 @@
   .log-empty { color: var(--muted); font-size: 12px; text-align: center; padding: 24px 12px; }
 
   /* ───── modal (simulated Affirm 2025 checkout) ───── */
-  .modal-overlay { position: fixed; inset: 0; background: rgba(15,23,34,.6); display: flex; align-items: center; justify-content: center; z-index: 100; animation: fadeIn .2s ease-out; }
+  /* Checkout is docked inside the storefront panel so the sequence + log stay visible. */
+  #storefront-panel { position: relative; }
+  .modal-overlay { position: absolute; inset: 0; background: #fff; display: flex; align-items: stretch; justify-content: center; z-index: 50; animation: fadeIn .2s ease-out; }
   @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-  .modal { width: min(560px, 92vw); height: min(720px, 92vh); background: white; border-radius: 14px; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,.3); display: flex; flex-direction: column; animation: slideUp .25s ease-out; }
+  .modal { width: 100%; height: 100%; background: white; border-radius: 0; overflow: hidden; box-shadow: none; display: flex; flex-direction: column; animation: slideUp .2s ease-out; }
   @keyframes slideUp { from { opacity: 0; transform: translateY(20px) scale(.97); } to { opacity: 1; transform: none; } }
   .modal .browser-chrome { background: #ECEEF1; padding: 8px 10px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #D5D9DF; }
   .modal .browser-chrome .dots { display: flex; gap: 5px; }
@@ -320,6 +322,11 @@
   .afm-ship-opt.on { border-color: #0C0C14; border-width: 2px; padding: 11px 13px; }
   .afm-ship-opt .afm-ship-name { flex: 1; font-size: 14px; color: #0C0C14; }
   .afm-ship-opt .afm-ship-amt { font-size: 14px; font-weight: 600; color: #0C0C14; }
+  .afm-ship-hint { font-size: 13px; color: #9A9AA5; padding: 8px 2px; }
+  .afm-ship-loading { display: flex; align-items: center; gap: 10px; font-size: 13px; color: #5B5B66; padding: 8px 2px; }
+  .afm-spin { width: 16px; height: 16px; border: 2px solid #DADAE2; border-top-color: #4A4AF4; border-radius: 50%; animation: spin .7s linear infinite; flex-shrink: 0; }
+  .afm-ship-typing { color: #9A9AA5; }
+  .afm-ship-typing .afm-cursor { display: inline-block; width: 1px; background: #4A4AF4; margin-left: 1px; animation: blink 1s step-end infinite; }
   /* Stage 3 — plan extras (payment method + shipping) */
   .afm-line { display: flex; align-items: center; justify-content: space-between; border: 1.5px solid #DADAE2; border-radius: 12px; padding: 12px 14px; }
   .afm-line .k { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #5B5B66; }
@@ -440,7 +447,7 @@
 
 <main>
   <!-- ─── LEFT: shopper / merchant view ─── -->
-  <section class="panel">
+  <section class="panel" id="storefront-panel">
     <h2><span class="dot"></span>Storefront — Shopper view</h2>
     <div class="body" id="member-view">
       <div class="merch-nav">
@@ -586,7 +593,7 @@
       <!-- Express only: Stage 2 — auto-fill shipping details -->
       <div class="afm-screen hidden" id="afm-screen-shipping">
         <h1 class="afm-h1">Shipping details</h1>
-        <p class="afm-sub">We pre-filled your saved address. Choose a shipping option to see your total.</p>
+        <p class="afm-sub" id="afm-ship-sub">Enter your shipping address to continue.</p>
         <div class="afm-ship-card">
           <div class="afm-ship-head"><span class="k">Shipping address</span><a title="Prefilled by Affirm (demo)">Edit</a></div>
           <div class="afm-ship-addr" id="afm-ship-addr">—</div>
@@ -1437,6 +1444,7 @@ async function runStep(step) {
       break;
 
     case 'address_entry':
+      setExpressShipStage('filled');
       logEvent('affirm', '🏠 Shopper entered a shipping address in the Affirm-hosted UI',
         `${SAT_REQUEST.shipping.line1}, ${SAT_REQUEST.shipping.city}, ${SAT_REQUEST.shipping.state} ${SAT_REQUEST.shipping.zipcode} · Affirm validates it, then calls the merchant Shipping & Totals endpoint.`);
       break;
@@ -1467,11 +1475,13 @@ async function runStep(step) {
         note: 'THE call that defines Express Checkout. Affirm POSTs (server-to-server) with order_id + shipping address; the merchant returns shipping options with per-option totals (amounts in cents). Shopper-blocking: respond in <5s (target sub-second), be idempotent, and reply 200/422 directly (no 3xx). Verify X-Affirm-Signature (HMAC-SHA512 over "<timestamp>.<raw_body>" with your private key).',
         doc: DOCS.express
       });
+      setExpressShipStage('options');
       break;
     }
 
     case 'select_shipping': {
       const o = EXPRESS_OPTIONS[state.expressSel];
+      setExpressShipStage('selected');
       logEvent('user', '🚚 Shopper selected a shipping option',
         `${o.label} · shipping ${money(o.shipC)} · tax ${money(o.taxC)} → total ${money(o.total)}. Affirm now shows financing terms for this total.`);
       break;
@@ -1589,18 +1599,41 @@ function selectAffirmPlan(row) {
     r.querySelector('.afm-radio').classList.toggle('on', on);
   });
 }
-// Express: fill the Shipping details screen (Stage 2) from config + selected option.
-function renderShippingScreen() {
+// Express: Shipping details screen (Stage 2) — rendered piece-by-piece so the
+// sequence steps can show the shopper entering the address, options loading, etc.
+function renderShipAddr() {
   const nm = DEMO_CONFIG.customer.name, a = DEMO_CONFIG.customer.address;
   $('#afm-ship-addr').innerHTML = `${escapeHtml(nm.first + ' ' + nm.last)}<br>${escapeHtml(a.line1)}${a.line2 ? ', ' + escapeHtml(a.line2) : ''}<br>${escapeHtml(a.city)}, ${escapeHtml(a.state)} ${escapeHtml(a.zipcode)}`;
+}
+function renderShipOpts() {
   $('#afm-ship-opts').innerHTML = EXPRESS_OPTIONS.map((o, i) => `
     <div class="afm-ship-opt${i === state.expressSel ? ' on' : ''}" data-sel="${i}">
       <span class="afm-radio${i === state.expressSel ? ' on' : ''}"></span>
       <span class="afm-ship-name">${escapeHtml(o.label)}</span>
       <span class="afm-ship-amt">${o.shipC ? money(o.shipC) : '$0.00'}</span>
     </div>`).join('');
-  applyPlanDisplay(EXPRESS_OPTIONS[state.expressSel].total);
-  renderExpressExtra();
+}
+// stage: 'entry' (open) → 'filled' (address entered) → 'options'/'selected' (S&T returned)
+function setExpressShipStage(stage) {
+  const save = $('#afm-shipping-save'), sub = $('#afm-ship-sub');
+  if (stage === 'entry') {
+    $('#afm-ship-addr').innerHTML = '<span class="afm-ship-typing">Waiting for the shopper to enter an address<span class="afm-cursor">&nbsp;</span></span>';
+    $('#afm-ship-opts').innerHTML = '<div class="afm-ship-hint">Shipping options appear once the address is validated.</div>';
+    if (sub) sub.textContent = 'Enter your shipping address to continue.';
+    if (save) save.disabled = true;
+  } else if (stage === 'filled') {
+    renderShipAddr();
+    $('#afm-ship-opts').innerHTML = '<div class="afm-ship-loading"><span class="afm-spin"></span>Fetching shipping options…</div>';
+    if (sub) sub.textContent = 'Address validated — getting shipping options from the merchant.';
+    if (save) save.disabled = true;
+  } else {
+    renderShipAddr();
+    renderShipOpts();
+    applyPlanDisplay(EXPRESS_OPTIONS[state.expressSel].total);
+    renderExpressExtra();
+    if (sub) sub.textContent = 'Choose a shipping option to see your total.';
+    if (save) save.disabled = false;
+  }
 }
 function renderExpressExtra() {
   const o = EXPRESS_OPTIONS[state.expressSel];
@@ -1639,7 +1672,7 @@ function resetAffirmScreens() {
   resetSlide();
   const first = $('#afm-plan .afm-plan-row');
   if (first) selectAffirmPlan(first);
-  if (exp) renderShippingScreen();
+  if (exp) setExpressShipStage('entry');
   else applyPlanDisplay(ORDER_TOTAL);
 }
 
@@ -1987,6 +2020,10 @@ function applyConfig() {
 /* ─────────────────────────────────────────────────────────────────
    Wire up
 ─────────────────────────────────────────────────────────────────── */
+// Dock the Affirm checkout inside the storefront panel so the sequence + log stay
+// visible while the shopper moves through address entry, shipping, and confirmation.
+$('#storefront-panel').appendChild($('#modal-overlay'));
+
 applyConfig();
 rebuildCheckouts();   // apply DEMO_CONFIG.travel.enabled default
 syncFlowUI();
