@@ -302,6 +302,54 @@
   .afm-btn:hover { background: #10104f; }
   .afm-cancel { background: transparent; border: 0; color: #5B5B66; font-size: 14px; padding: 2px; cursor: pointer; font-family: inherit; }
   .afm-cancel:hover { color: #0C0C14; }
+
+  /* ── Express Checkout shopper-journey UI ── */
+  /* Stage 1 — one-tap start */
+  .express-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; color: var(--affirm-accent); background: #ECECFF; padding: 3px 9px; border-radius: 999px; margin-bottom: 8px; letter-spacing: .02em; }
+  .btn-ghost { background: #fff; color: var(--affirm-navy); border: 1.5px solid var(--affirm-navy); font-weight: 600; }
+  .btn-ghost:hover { background: var(--panel-2); }
+  .cta .cta-express-sub { margin-top: 6px; font-size: 11px; color: var(--muted); text-align: center; }
+  /* Stage 2 — shipping details */
+  .afm-ship-card { border: 1.5px solid #DADAE2; border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
+  .afm-ship-head { display: flex; align-items: center; justify-content: space-between; }
+  .afm-ship-head .k { font-size: 12px; font-weight: 600; color: #74747F; text-transform: uppercase; letter-spacing: .03em; }
+  .afm-ship-head a { font-size: 13px; color: #4A4AF4; font-weight: 600; cursor: pointer; }
+  .afm-ship-addr { font-size: 14px; color: #0C0C14; line-height: 1.5; }
+  .afm-ship-opts { display: flex; flex-direction: column; gap: 10px; }
+  .afm-ship-opt { display: flex; align-items: center; gap: 12px; border: 1.5px solid #DADAE2; border-radius: 12px; padding: 12px 14px; cursor: pointer; }
+  .afm-ship-opt.on { border-color: #0C0C14; border-width: 2px; padding: 11px 13px; }
+  .afm-ship-opt .afm-ship-name { flex: 1; font-size: 14px; color: #0C0C14; }
+  .afm-ship-opt .afm-ship-amt { font-size: 14px; font-weight: 600; color: #0C0C14; }
+  /* Stage 3 — plan extras (payment method + shipping) */
+  .afm-line { display: flex; align-items: center; justify-content: space-between; border: 1.5px solid #DADAE2; border-radius: 12px; padding: 12px 14px; }
+  .afm-line .k { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #5B5B66; }
+  .afm-line .v { font-size: 14px; color: #0C0C14; font-weight: 600; }
+  #afm-express-extra { display: flex; flex-direction: column; gap: 10px; }
+  #afm-express-extra.hidden { display: none; }
+  /* Stage 4 — slide to confirm */
+  .afm-slide { position: relative; height: 56px; border-radius: 999px; background: #000049; overflow: hidden; user-select: none; touch-action: none; }
+  .afm-slide.hidden { display: none; }
+  .afm-slide.done { background: #0B7A52; }
+  .afm-slide-label { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 15px; font-weight: 600; pointer-events: none; }
+  .afm-slide-thumb { position: absolute; top: 4px; left: 4px; width: 48px; height: 48px; border-radius: 50%; background: #fff; color: #000049; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 700; cursor: grab; box-shadow: 0 1px 4px rgba(0,0,0,.25); }
+  .afm-slide-thumb:active { cursor: grabbing; }
+  /* Stage 5 — order complete */
+  .oc { margin-top: 16px; border: 1px solid #A8DEC0; border-radius: 12px; overflow: hidden; }
+  .oc.hidden { display: none; }
+  .oc-head { background: linear-gradient(135deg, #E8F4EC, #F4FAF6); padding: 18px; text-align: center; }
+  .oc-head .check { width: 44px; height: 44px; border-radius: 50%; background: var(--success); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 26px; margin-bottom: 6px; }
+  .oc-head h3 { margin: 0 0 2px; color: #0C5B36; }
+  .oc-head .sub { font-size: 12px; color: #3d7a5c; }
+  .oc-body { background: #fff; padding: 14px 16px; display: flex; flex-direction: column; gap: 14px; }
+  .oc-sec .k { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin-bottom: 4px; }
+  .oc-sec .v { font-size: 13px; color: var(--text); line-height: 1.5; }
+  .oc-pay { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text); }
+  .oc-items { display: flex; flex-direction: column; gap: 8px; }
+  .oc-item { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+  .oc-item .thumb { width: 34px; height: 34px; border-radius: 8px; background: var(--panel-2); display: flex; align-items: center; justify-content: center; font-size: 18px; }
+  .oc-item .nm { flex: 1; }
+  .oc-item .pr { font-weight: 600; }
+  .oc-total { display: flex; justify-content: space-between; font-weight: 700; border-top: 1px solid var(--border); padding-top: 8px; font-size: 14px; }
   .afm-fineprint { font-size: 12px; color: #74747F; line-height: 1.45; margin: 0; text-align: center; }
   .afm-fineprint a { color: #4A4AF4; }
   .afm-sandbox { margin: auto 16px 14px; background: #F4F4F7; border-radius: 12px; padding: 12px 14px; display: flex; gap: 10px; align-items: flex-start; }
@@ -412,6 +460,8 @@
       <div id="choose-payment" class="choose-payment hidden">⚠️ Checkout cancelled — please choose a payment method to continue.</div>
 
       <div class="cta">
+        <div class="express-chip hidden" id="express-chip">⚡ Express Checkout · Affirm pre-fills your details</div>
+        <button id="btn-addbag" class="btn-ghost hidden" style="margin-bottom:8px">Add to bag</button>
         <button id="btn-pay" class="btn-affirm">Pay with affirm</button>
         <div class="int-note" id="int-note">Integration: <b>Direct API</b> — <code>affirm.checkout()</code> → confirm → server-side <code>authorize</code></div>
       </div>
@@ -431,6 +481,26 @@
         <h3>Thanks for your order!</h3>
         <div class="order-id">Order # <span id="order-id">—</span></div>
         <div style="margin-top: 8px; font-size: 12px;">Financed by Affirm</div>
+      </div>
+
+      <!-- Express only: Stage 5 — order complete -->
+      <div id="thankyou-express" class="oc hidden">
+        <div class="oc-head">
+          <div class="check">✓</div>
+          <h3>Your order is placed!</h3>
+          <div class="sub">We'll email you a confirmation and another email when your order ships.</div>
+        </div>
+        <div class="oc-body">
+          <div class="oc-sec"><div class="k">Shipping address</div><div class="v" id="oc-ship">—</div></div>
+          <div class="oc-sec"><div class="k">Contact</div><div class="v" id="oc-contact">—</div></div>
+          <div class="oc-sec"><div class="k">Payment method</div><div class="oc-pay" id="oc-pay">—</div></div>
+          <div class="oc-sec">
+            <div class="k">Order summary</div>
+            <div class="oc-items" id="oc-items"></div>
+            <div class="oc-total"><span>Total</span><span id="oc-total">—</span></div>
+          </div>
+          <div class="oc-sec"><div class="v" style="font-size:11px;color:var(--muted)">Order # <span id="oc-order-id">—</span> · Financed by Affirm</div></div>
+        </div>
       </div>
 
       <!-- Direct API only: merchant back-office transaction management -->
@@ -513,6 +583,18 @@
         <p class="afm-fineprint" id="afm-verify-fineprint">Sandbox verification — code is prefilled for this demo. No SMS is sent. Type "123456" for the verification pin.</p>
       </div>
 
+      <!-- Express only: Stage 2 — auto-fill shipping details -->
+      <div class="afm-screen hidden" id="afm-screen-shipping">
+        <h1 class="afm-h1">Shipping details</h1>
+        <p class="afm-sub">We pre-filled your saved address. Choose a shipping option to see your total.</p>
+        <div class="afm-ship-card">
+          <div class="afm-ship-head"><span class="k">Shipping address</span><a title="Prefilled by Affirm (demo)">Edit</a></div>
+          <div class="afm-ship-addr" id="afm-ship-addr">—</div>
+        </div>
+        <div class="afm-ship-opts" id="afm-ship-opts"></div>
+        <button class="afm-btn" id="afm-shipping-save">Save</button>
+      </div>
+
       <div class="afm-screen hidden" id="afm-screen-terms">
         <div class="afm-amount">
           <span class="afm-amount-k">Purchase amount</span>
@@ -546,9 +628,19 @@
             </div>
           </div>
         </div>
+        <!-- Express only: Stage 3 — payment method + selected shipping -->
+        <div id="afm-express-extra" class="hidden">
+          <div class="afm-line"><span class="k">💳 Payment method</span><span class="v">Debit ···· 1234</span></div>
+          <div class="afm-line"><span class="k">📦 Shipping</span><span class="v" id="afm-ship-line">—</span></div>
+        </div>
         <div class="afm-total"><span>Total of payments</span><span class="afm-total-v">$329.38</span></div>
         <p class="afm-fineprint"><a>Plans are subject</a> to final eligibility and approval. Illustrative terms — simulated.</p>
         <button class="afm-btn" id="affirm-confirm">Choose this plan</button>
+        <!-- Express only: Stage 4 — slide to confirm -->
+        <div class="afm-slide hidden" id="afm-slide">
+          <div class="afm-slide-thumb" id="afm-slide-thumb">›</div>
+          <span class="afm-slide-label">Slide to confirm</span>
+        </div>
         <button class="afm-cancel" id="affirm-cancel">Cancel and pay another way</button>
       </div>
 
@@ -1443,8 +1535,13 @@ async function runStep(step) {
       logEvent('system', '🎉 Order placed', 'Shopper sees the confirmation screen.');
       $('#processing').classList.add('hidden');
       $('#member-status').classList.add('hidden');
-      $('#thankyou').classList.remove('hidden');
-      $('#order-id').textContent = ORDER_ID;
+      if (state.flow === 'express') {
+        renderOrderComplete();
+        $('#thankyou-express').classList.remove('hidden');
+      } else {
+        $('#thankyou').classList.remove('hidden');
+        $('#order-id').textContent = ORDER_ID;
+      }
       if (state.flow === 'direct' || state.flow === 'express') openBackoffice();
       break;
   }
@@ -1475,11 +1572,15 @@ function showProcessing() {
   $('#processing').classList.remove('hidden');
 }
 function setAfmProgress(active) {
-  const order = { verify: 0, plan: 1, review: 2 }[active] ?? 0;
+  const order = { verify: 0, shipping: 0, plan: 1, review: 2, confirm: 2 }[active] ?? 0;
   $$('#afm-progress .afm-prog-step').forEach((el, i) => {
     el.classList.toggle('current', i === order);
     el.classList.toggle('done', i < order);
   });
+}
+function setAfmProgressLabels(exp) {
+  const labels = exp ? ['Shipping', 'Choose a plan', 'Confirm'] : ['Verify', 'Pick a plan', 'Review'];
+  $$('#afm-progress .afm-prog-step span').forEach((el, i) => { if (labels[i]) el.textContent = labels[i]; });
 }
 function selectAffirmPlan(row) {
   $$('#afm-plan .afm-plan-row').forEach(r => {
@@ -1488,12 +1589,58 @@ function selectAffirmPlan(row) {
     r.querySelector('.afm-radio').classList.toggle('on', on);
   });
 }
+// Express: fill the Shipping details screen (Stage 2) from config + selected option.
+function renderShippingScreen() {
+  const nm = DEMO_CONFIG.customer.name, a = DEMO_CONFIG.customer.address;
+  $('#afm-ship-addr').innerHTML = `${escapeHtml(nm.first + ' ' + nm.last)}<br>${escapeHtml(a.line1)}${a.line2 ? ', ' + escapeHtml(a.line2) : ''}<br>${escapeHtml(a.city)}, ${escapeHtml(a.state)} ${escapeHtml(a.zipcode)}`;
+  $('#afm-ship-opts').innerHTML = EXPRESS_OPTIONS.map((o, i) => `
+    <div class="afm-ship-opt${i === state.expressSel ? ' on' : ''}" data-sel="${i}">
+      <span class="afm-radio${i === state.expressSel ? ' on' : ''}"></span>
+      <span class="afm-ship-name">${escapeHtml(o.label)}</span>
+      <span class="afm-ship-amt">${o.shipC ? money(o.shipC) : '$0.00'}</span>
+    </div>`).join('');
+  applyPlanDisplay(EXPRESS_OPTIONS[state.expressSel].total);
+  renderExpressExtra();
+}
+function renderExpressExtra() {
+  const o = EXPRESS_OPTIONS[state.expressSel];
+  const line = $('#afm-ship-line');
+  if (line) line.textContent = `${o.label} · ${o.shipC ? money(o.shipC) : 'Free'}`;
+}
+// In-modal shipping selection (Stage 2). Updates totals live; no flow reset.
+function pickShipping(i) {
+  state.expressSel = Math.max(0, Math.min(i | 0, EXPRESS_OPTIONS.length - 1));
+  $$('#afm-ship-opts .afm-ship-opt').forEach((el, idx) => {
+    const on = idx === state.expressSel;
+    el.classList.toggle('on', on);
+    el.querySelector('.afm-radio').classList.toggle('on', on);
+  });
+  applyPlanDisplay(EXPRESS_OPTIONS[state.expressSel].total);
+  renderExpressExtra();
+  $$('#cfg-express-options input[name="expsel"]').forEach(r => { r.checked = Number(r.value) === state.expressSel; });
+}
+function resetSlide() {
+  const t = $('#afm-slide-thumb'), s = $('#afm-slide');
+  if (!t || !s) return;
+  t.style.left = '4px';
+  s.classList.remove('done');
+}
 function resetAffirmScreens() {
-  $('#afm-screen-verify').classList.remove('hidden');
+  const exp = state.flow === 'express';
+  $('#afm-screen-verify').classList.toggle('hidden', exp);
+  $('#afm-screen-shipping').classList.toggle('hidden', !exp);
   $('#afm-screen-terms').classList.add('hidden');
-  setAfmProgress('verify');
+  setAfmProgressLabels(exp);
+  setAfmProgress(exp ? 'shipping' : 'verify');
+  // Express-only bits inside the terms screen
+  $('#afm-express-extra').classList.toggle('hidden', !exp);
+  $('#afm-slide').classList.toggle('hidden', !exp);
+  $('#affirm-confirm').classList.toggle('hidden', exp);
+  resetSlide();
   const first = $('#afm-plan .afm-plan-row');
   if (first) selectAffirmPlan(first);
+  if (exp) renderShippingScreen();
+  else applyPlanDisplay(ORDER_TOTAL);
 }
 
 function onAffirmConfirmed() {
@@ -1529,6 +1676,7 @@ function cancelToStart() {
   $('#member-status').classList.add('hidden');
   $('#processing').classList.add('hidden');
   $('#thankyou').classList.add('hidden');
+  $('#thankyou-express').classList.add('hidden');
   $('#backoffice').classList.add('hidden');
   $('#choose-payment').classList.remove('hidden');
   $('#btn-pay').disabled = false;
@@ -1646,6 +1794,7 @@ function hideStorefrontStates() {
   $('#member-status').classList.add('hidden');
   $('#processing').classList.add('hidden');
   $('#thankyou').classList.add('hidden');
+  $('#thankyou-express').classList.add('hidden');
   $('#backoffice').classList.add('hidden');
   $('#choose-payment').classList.add('hidden');
   $('#btn-pay').disabled = false;
@@ -1711,6 +1860,10 @@ function syncFlowUI() {
   $$('#cfg-express-options input[name="expsel"]').forEach(r => { r.checked = Number(r.value) === state.expressSel; });
   const ez = $('#cfg-express-zone'); if (ez) ez.checked = state.expressZone;
   $('#int-note').innerHTML = intNoteHtml();
+  const exp = state.flow === 'express';
+  $('#express-chip').classList.toggle('hidden', !exp);
+  $('#btn-addbag').classList.toggle('hidden', !exp);
+  $('#btn-pay').textContent = exp ? 'Buy with affirm' : 'Pay with affirm';
 }
 function setFlow(flow) {
   if (flow === state.flow) return;
@@ -1758,6 +1911,35 @@ function setPlanRow(plan, amount, suffix) {
   const el = $(`.afm-plan-row[data-plan="${plan}"] .afm-plan-mo`);
   if (el) el.innerHTML = `<b>${amount}</b>${suffix}`;
 }
+// Payment-plan amounts derived from any total (Express recomputes per shipping option).
+function planAmounts(total) {
+  const r = 0.15 / 12;
+  return {
+    pay4: Math.round(total / 4),
+    p3:   Math.round(total / 3),
+    p6:   Math.round(total * r / (1 - Math.pow(1 + r, -6)))
+  };
+}
+function applyPlanDisplay(total) {
+  const a = planAmounts(total);
+  $('#afm-amount-val').textContent = money(total);
+  $$('.afm-total-v').forEach(el => el.textContent = money(total));
+  setPlanRow('p4', money(a.pay4), '/payment · 4 payments');
+  setPlanRow('p3', money(a.p3), '/mo · 3 months');
+  setPlanRow('p6', money(a.p6), '/mo · 6 months');
+}
+// Express: fill the order-complete card (Stage 5).
+function renderOrderComplete() {
+  const o = EXPRESS_OPTIONS[state.expressSel];
+  const nm = DEMO_CONFIG.customer.name, a = DEMO_CONFIG.customer.address;
+  $('#oc-ship').innerHTML = `${escapeHtml(nm.first + ' ' + nm.last)}<br>${escapeHtml(a.line1)}${a.line2 ? ', ' + escapeHtml(a.line2) : ''}<br>${escapeHtml(a.city)}, ${escapeHtml(a.state)} ${escapeHtml(a.zipcode)}`;
+  $('#oc-contact').textContent = DEMO_CONFIG.customer.email;
+  $('#oc-pay').innerHTML = `<span class="affirm-name">affirm</span> · 4 interest-free payments of <b>${money(planAmounts(o.total).pay4)}</b>`;
+  $('#oc-items').innerHTML = ITEMS.map(i => `<div class="oc-item"><span class="thumb">${i.emoji || '📦'}</span><span class="nm">${escapeHtml(i.name)} · Qty ${i.qty}</span><span class="pr">${money(i.cents * i.qty)}</span></div>`).join('')
+    + `<div class="oc-item"><span class="thumb">🚚</span><span class="nm">${escapeHtml(o.label)}</span><span class="pr">${o.shipC ? money(o.shipC) : 'Free'}</span></div>`;
+  $('#oc-total').textContent = money(o.total);
+  $('#oc-order-id').textContent = ORDER_ID;
+}
 function applyConfig() {
   const b = DEMO_CONFIG.brand, rs = document.documentElement.style;
   rs.setProperty('--merch', b.accent);
@@ -1790,11 +1972,7 @@ function applyConfig() {
   rows.push(`<div class="affirm-blurb">As low as <b>${money(LOWAS)}/mo</b> with <span class="affirm-name">Affirm</span></div>`);
   $('#totals').innerHTML = rows.join('');
 
-  $('#afm-amount-val').textContent = money(ORDER_TOTAL);
-  $('.afm-total-v').textContent = money(ORDER_TOTAL);
-  setPlanRow('p4', money(PAY4), '/payment · 4 payments');
-  setPlanRow('p3', money(PLAN_3MO), '/mo · 3 months');
-  setPlanRow('p6', money(PLAN_6MO), '/mo · 6 months');
+  applyPlanDisplay(ORDER_TOTAL);
 
   $('#cfg-express-options').innerHTML = EXPRESS_OPTIONS.map((o, i) => `
     <label class="config-opt">
@@ -1855,9 +2033,51 @@ $('#afm-continue').addEventListener('click', () => {
   $('#afm-screen-terms').classList.remove('hidden');
   setAfmProgress('plan');
 });
+// Express: Shipping details (Stage 2) → Choose a plan (Stage 3)
+$('#afm-shipping-save').addEventListener('click', () => {
+  $('#afm-screen-shipping').classList.add('hidden');
+  $('#afm-screen-terms').classList.remove('hidden');
+  setAfmProgress('plan');
+});
+$('#afm-ship-opts').addEventListener('click', (e) => {
+  const el = e.target.closest('.afm-ship-opt');
+  if (el) pickShipping(Number(el.dataset.sel));
+});
 $$('#afm-plan .afm-plan-row').forEach(r => r.addEventListener('click', () => selectAffirmPlan(r)));
 $('#affirm-confirm').addEventListener('click', () => onAffirmConfirmed());
 $('#affirm-cancel').addEventListener('click', () => onAffirmCancelled());
+
+// Express: slide-to-confirm (Stage 4) — pointer drag with click-to-confirm fallback.
+(function initSlide() {
+  const slide = $('#afm-slide'), thumb = $('#afm-slide-thumb');
+  if (!slide || !thumb) return;
+  let dragging = false, startX = 0, startLeft = 4, maxLeft = 4;
+  const clientX = (e) => (e.touches && e.touches[0] ? e.touches[0].clientX : e.clientX);
+  const onDown = (e) => { dragging = true; startX = clientX(e); startLeft = thumb.offsetLeft; maxLeft = slide.clientWidth - thumb.offsetWidth - 4; e.preventDefault(); };
+  const onMove = (e) => {
+    if (!dragging) return;
+    const left = Math.max(4, Math.min(startLeft + (clientX(e) - startX), maxLeft));
+    thumb.style.left = left + 'px';
+  };
+  const onUp = () => {
+    if (!dragging) return; dragging = false;
+    if (thumb.offsetLeft >= maxLeft - 6) { thumb.style.left = maxLeft + 'px'; slide.classList.add('done'); onAffirmConfirmed(); }
+    else { thumb.style.left = '4px'; }
+  };
+  thumb.addEventListener('mousedown', onDown);
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+  thumb.addEventListener('touchstart', onDown, { passive: false });
+  document.addEventListener('touchmove', onMove, { passive: false });
+  document.addEventListener('touchend', onUp);
+  // Click the track (not the thumb) to confirm — convenient for demos.
+  slide.addEventListener('click', (e) => {
+    if (e.target === thumb || !state.modalOpen) return;
+    maxLeft = slide.clientWidth - thumb.offsetWidth - 4;
+    thumb.style.left = maxLeft + 'px'; slide.classList.add('done'); onAffirmConfirmed();
+  });
+})();
+$('#btn-addbag').addEventListener('click', (e) => e.preventDefault());
 $('#bo-capture').addEventListener('click', boCapture);
 $('#bo-void').addEventListener('click', boVoid);
 $('#bo-refund').addEventListener('click', () => boRefund(ORDER_TOTAL, false));
