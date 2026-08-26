@@ -1,6 +1,6 @@
-# Affirm Integration Demo — Direct API vs Virtual Card (VCN)
+# Affirm Integration Demo — Direct API, VCN &amp; Embedded Checkout
 
-An interactive, **single-file** mockup that walks a merchant through Affirm's two
+An interactive, **single-file** mockup that walks a merchant through Affirm's
 checkout integrations side by side, with a toggle to switch between them. Built
 for Affirm Partner Engineering to **reuse per merchant** — rebrand it in ~5
 minutes by editing one config block, then share a link or a file.
@@ -19,6 +19,13 @@ minutes by editing one config block, then share a link or a file.
 - **Virtual Card (VCN)** — `affirm.checkout.open_vcn({ success, error, checkout_data })`
   with `use_vcn: true` → `success(card_details)` hands you a one-time virtual
   card you run through your **existing payment processor**.
+- **Embedded Checkout** — the same `affirm.checkout()` → `affirm.checkout.open()`
+  call as Direct API, but rendered **inline** in the payment section via two
+  page elements (`#affirm-embedded-checkout` iframe mount + a
+  `#affirm-checkout-confirmation-button` confirmation control) instead of a
+  modal or redirect. Settles through the same Authorize/Capture/Void/Refund
+  backend as Direct API. Based on a **preliminary, internal** Affirm doc — see
+  [`docs/integration-guide-embedded-checkout.md`](docs/integration-guide-embedded-checkout.md).
 
 Three synced columns: a **storefront** (shopper view + back-office order
 management), the **sequence of operations**, and a live **backend/API activity
@@ -132,6 +139,7 @@ endpoints and payloads accurate:
 - [USA — Direct Checkout (Transactions API)](docs/integration-guide-usa-direct.md)
 - [USA — Virtual Card (VCN)](docs/integration-guide-usa-vcn.md)
 - [Travel vertical — itinerary object (+ insurance)](docs/integration-guide-travel-itinerary.md)
+- [Embedded Checkout (preliminary, internal doc)](docs/integration-guide-embedded-checkout.md)
 
 ---
 

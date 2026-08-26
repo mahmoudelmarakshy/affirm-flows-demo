@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Affirm Integration Demo — Direct API vs Virtual Card (VCN)</title>
+<title>Affirm Integration Demo — Direct API, Virtual Card (VCN) &amp; Embedded Checkout</title>
 <style>
   /* ───── theme ───── */
   :root {
@@ -113,6 +113,57 @@
   .cart-heading { font-weight: 800; font-size: 16px; margin-bottom: 12px; }
   .cart-heading span { color: var(--muted); font-weight: 600; font-size: 12px; }
 
+  /* ───── storefront layout ─────
+     Default: single column, stacked (cart, then the Affirm CTA/checkout) —
+     matches the original Direct API / VCN look.
+     Embedded Checkout flow adds `.embedded-layout`: a two-column view with
+     cart on the left and the payment-method radios (+ inline checkout) on
+     the right. `order` keeps the cart first in both modes regardless of
+     DOM position. */
+  .storefront-grid { display: flex; flex-direction: column; }
+  .cart-col { order: 1; flex: 1 1 auto; width: 100%; }
+  .payment-col { order: 2; flex: 1 1 auto; width: 100%; }
+  .cart-col .cart-heading { margin-top: 2px; }
+
+  .storefront-grid.embedded-layout {
+    flex-direction: row; flex-wrap: wrap; gap: 22px; align-items: flex-start;
+  }
+  .storefront-grid.embedded-layout .cart-col { flex: 0 1 300px; min-width: 240px; max-width: 320px; width: auto; }
+  .storefront-grid.embedded-layout .payment-col { flex: 1 1 300px; min-width: 260px; width: auto; }
+
+  /* Payment-method radios only appear for the Embedded Checkout flow; Direct
+     API / VCN keep the single "Pay with affirm" CTA (no method picker). */
+  .pay-heading, .pay-options, #pay-panel-inert { display: none; }
+  .storefront-grid.embedded-layout .pay-heading { display: block; }
+  .storefront-grid.embedded-layout .pay-options { display: flex; }
+  .storefront-grid.embedded-layout #pay-panel-inert:not(.hidden) { display: block; }
+
+  .pay-heading { font-weight: 800; font-size: 12px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); margin-bottom: 10px; }
+  .storefront-grid.embedded-layout .pay-options { flex-direction: column; gap: 9px; }
+  .pay-option {
+    display: flex; align-items: center; gap: 11px; border: 1.5px solid var(--border);
+    border-radius: 10px; padding: 12px 13px; cursor: pointer; background: var(--panel);
+    transition: border-color .15s, background .15s;
+  }
+  .pay-option:hover { border-color: #C8D0DC; }
+  .pay-option input[type="radio"] { width: 17px; height: 17px; accent-color: var(--affirm-navy); flex-shrink: 0; cursor: pointer; margin: 0; }
+  .pay-option-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .pay-option-title { font-weight: 700; font-size: 13.5px; }
+  .pay-option-sub { font-size: 11.5px; color: var(--muted); }
+  .pay-option-mark { font-size: 18px; flex-shrink: 0; line-height: 1; }
+  .pay-option-mark-affirm {
+    font-weight: 800; font-size: 12px; letter-spacing: .3px; color: #fff;
+    background: var(--affirm-navy); padding: 4px 9px; border-radius: 5px;
+  }
+  .pay-option.selected { border-color: var(--affirm-navy); border-width: 2px; padding: 11px 12px; background: #FAFAFF; }
+
+  .pay-panel { margin-top: 14px; }
+  .pay-panel-inert {
+    padding: 16px 14px; border: 1px dashed var(--border); border-radius: 10px;
+    color: var(--muted); font-size: 12.5px; text-align: center; line-height: 1.5; background: var(--panel-2);
+  }
+  .pay-panel-inert b { color: var(--text); }
+
   .product { display: flex; gap: 12px; padding: 11px; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 10px; background: var(--panel); box-shadow: var(--shadow); }
   .product .thumb {
     width: 72px; height: 72px; flex-shrink: 0; font-size: 34px;
@@ -188,6 +239,36 @@
   .bo-capture { background: var(--affirm-navy); color:#fff; border-color: var(--affirm-navy); }
   .bo-capture:hover { background:#10104f; }
   .hidden { display: none !important; }
+
+  /* ───── embedded checkout (inline, not a modal) ───── */
+  .embedded-wrap { margin-top: 14px; }
+  .embedded-frame {
+    position: relative; border: 1px solid var(--border); border-radius: 12px;
+    background: #fff; overflow: hidden; box-shadow: var(--shadow);
+  }
+  .embedded-frame .ef-tag {
+    position: absolute; top: 9px; right: 11px; font-size: 9px; font-weight: 800;
+    letter-spacing: .5px; text-transform: uppercase; color: #fff; background: var(--affirm-navy);
+    padding: 3px 8px; border-radius: 999px; z-index: 2;
+  }
+  .embedded-skeleton { padding: 22px 20px 26px; display: flex; flex-direction: column; gap: 12px; }
+  .embedded-skeleton .sk-line { height: 12px; border-radius: 6px; background: linear-gradient(90deg, #ECECF1 25%, #F6F6FA 37%, #ECECF1 63%); background-size: 400% 100%; animation: shimmer 1.4s infinite linear; }
+  .embedded-skeleton .sk-line.short { width: 40%; }
+  @keyframes shimmer { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
+  .embedded-frame .affirm-mock {
+    background: #fff; color: #0C0C14; font-family: 'CalibreDemo', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    display: flex; flex-direction: column;
+  }
+  .embedded-frame .afm-progress { padding-top: 16px; }
+  .embedded-confirm { margin-top: 10px; }
+  .embedded-confirm button {
+    width: 100%; padding: 14px; border-radius: 999px; font-size: 15px; font-weight: 600;
+    background: var(--affirm-navy); color: #fff; border: 0; font-family: inherit; cursor: pointer;
+  }
+  .embedded-confirm button:hover { background: #10104f; }
+  .embedded-confirm .ec-hint { margin-top: 7px; font-size: 11px; color: var(--muted); text-align: center; line-height: 1.4; }
+  .embedded-confirm .ec-hint code { font-size: 10.5px; }
+  .embedded-wrap .afm-cancel { display: block; margin: 10px auto 0; }
 
   /* ───── sequence diagram column ───── */
   .seq-current { padding: 12px 16px; border-bottom: 1px solid var(--border); background: var(--panel-2); }
@@ -337,11 +418,12 @@
     <span class="x">×</span>
     <span class="affirm">affirm</span>
   </div>
-  <div class="title">Direct API &amp; Virtual Card (VCN) integration demo</div>
+  <div class="title">Direct API, Virtual Card (VCN) &amp; Embedded Checkout integration demo</div>
   <div class="controls">
     <div class="flow-toggle" id="flow-toggle">
       <button data-flow="direct" class="on">Direct API</button>
       <button data-flow="vcn">Virtual Card (VCN)</button>
+      <button data-flow="embedded">Embedded Checkout</button>
     </div>
     <button id="btn-back" disabled title="Go back one step">⏮ Back</button>
     <button id="btn-step" disabled title="Advance one step">⏭ Step</button>
@@ -394,48 +476,155 @@
         <span>Free 2-day shipping</span><span>·</span><span>30-day returns</span>
       </div>
 
-      <div class="cart-heading">Your cart <span>(2 items)</span></div>
-      <div id="cart-items"></div>
+      <div class="storefront-grid" id="storefront-grid">
+        <div class="payment-col">
+          <div class="pay-heading">Choose a payment method</div>
+          <div class="pay-options" id="pay-options">
+            <label class="pay-option" data-pay="card">
+              <input type="radio" name="paymethod" value="card" id="pay-opt-card">
+              <span class="pay-option-body">
+                <span class="pay-option-title">Credit or debit card</span>
+                <span class="pay-option-sub">Visa · Mastercard · Amex · Discover</span>
+              </span>
+              <span class="pay-option-mark">💳</span>
+            </label>
+            <label class="pay-option selected" data-pay="affirm">
+              <input type="radio" name="paymethod" value="affirm" id="pay-opt-affirm" checked>
+              <span class="pay-option-body">
+                <span class="pay-option-title">Affirm</span>
+                <span class="pay-option-sub">Pay over time — as low as 0% APR</span>
+              </span>
+              <span class="pay-option-mark pay-option-mark-affirm">affirm</span>
+            </label>
+          </div>
 
-      <div class="totals" id="totals"></div>
+          <div class="pay-panel hidden" id="pay-panel-inert">
+            <div class="pay-panel-inert">This simulation only implements the <b>Affirm</b> integration — select Affirm above to continue the demo.</div>
+          </div>
 
-      <div id="choose-payment" class="choose-payment hidden">⚠️ Checkout cancelled — please choose a payment method to continue.</div>
+          <div class="pay-panel" id="pay-panel-affirm">
+            <div id="choose-payment" class="choose-payment hidden">⚠️ Checkout cancelled — please choose a payment method to continue.</div>
 
-      <div class="cta">
-        <button id="btn-pay" class="btn-affirm">Pay with affirm</button>
-        <div class="int-note" id="int-note">Integration: <b>Direct API</b> — <code>affirm.checkout()</code> → confirm → server-side <code>authorize</code></div>
-      </div>
+            <!-- Embedded Checkout: rendered inline (no modal), directly under the Affirm
+                 payment option and ABOVE the "Pay with affirm" CTA. Mirrors the two elements
+                 from Affirm's Embedded Checkout doc: #affirm-embedded-checkout (iframe mount)
+                 and #affirm-checkout-confirmation-button (merchant-page-native confirm control). -->
+            <div id="embedded-wrap" class="embedded-wrap hidden">
+              <div class="embedded-frame" id="affirm-embedded-checkout">
+                <span class="ef-tag">Affirm · rendered inline</span>
+                <div class="embedded-skeleton" id="embedded-skeleton">
+                  <div class="sk-line" style="width:45%"></div>
+                  <div class="sk-line" style="width:82%"></div>
+                  <div class="sk-line short"></div>
+                </div>
+                <div class="affirm-mock hidden" id="embedded-mock">
+                  <div class="afm-progress" id="emb-progress">
+                    <div class="afm-prog-step current"><span>Verify</span></div>
+                    <div class="afm-prog-step"><span>Pick a plan</span></div>
+                    <div class="afm-prog-step"><span>Review details</span></div>
+                  </div>
+                  <div class="afm-screen" id="emb-screen-verify">
+                    <h1 class="afm-h1">Verify it's you</h1>
+                    <p class="afm-sub">Enter the code we texted to <b>(•••) •••-3729</b> to continue your purchase with Affirm.</p>
+                    <div class="afm-code">
+                      <span class="filled">1</span><span class="filled">2</span><span class="filled">3</span><span class="filled">4</span><span class="filled">5</span><span class="filled">6</span>
+                    </div>
+                    <div class="afm-resend">Didn't get a code? <a>Resend</a></div>
+                    <p class="afm-fineprint afm-verify-fineprint">Sandbox verification — code is prefilled for this demo. No SMS is sent. Type "123456" for the verification pin.</p>
+                  </div>
+                  <div class="afm-screen hidden" id="emb-screen-terms">
+                    <div class="afm-amount">
+                      <span class="afm-amount-k">Purchase amount</span>
+                      <span class="afm-amount-v">$329.38</span>
+                    </div>
+                    <h1 class="afm-h1">Choose a payment plan</h1>
+                    <p class="afm-sub">We're not big on fees, so we don't charge any.</p>
+                    <div class="afm-plan" id="emb-plan">
+                      <div class="afm-plan-row afm-selected" data-plan="p4">
+                        <div class="afm-radio on"></div>
+                        <div class="afm-plan-body">
+                          <span class="afm-badge">0% APR</span>
+                          <div class="afm-plan-mo"><b>$82.35</b>/payment · 4 payments</div>
+                          <div class="afm-plan-sub">Every 2 weeks · $0 interest · $0 due today</div>
+                        </div>
+                      </div>
+                      <div class="afm-plan-row" data-plan="p3">
+                        <div class="afm-radio"></div>
+                        <div class="afm-plan-body">
+                          <span class="afm-badge">0% APR</span>
+                          <div class="afm-plan-mo"><b>$109.79</b>/mo · 3 months</div>
+                          <div class="afm-plan-sub">$0 interest · $0 due today</div>
+                        </div>
+                      </div>
+                      <div class="afm-plan-row" data-plan="p6">
+                        <div class="afm-radio"></div>
+                        <div class="afm-plan-body">
+                          <span class="afm-badge alt">Lowest monthly payment</span>
+                          <div class="afm-plan-mo"><b>$57.85</b>/mo · 6 months</div>
+                          <div class="afm-plan-sub">15% APR · $0 due today</div>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="afm-total"><span>Total of payments</span><span class="afm-total-v">$329.38</span></div>
+                    <p class="afm-fineprint"><a>Plans are subject</a> to final eligibility and approval. Illustrative terms — simulated.</p>
+                  </div>
+                  <div class="afm-sandbox">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 2.75a9.25 9.25 0 100 18.5 9.25 9.25 0 000-18.5zM1.25 12C1.25 6.063 6.063 1.25 12 1.25S22.75 6.063 22.75 12 17.937 22.75 12 22.75 1.25 17.937 1.25 12zM12 10.25a.75.75 0 01.75.75v5a.75.75 0 01-1.5 0v-5a.75.75 0 01.75-.75zM12 9a1 1 0 100-2 1 1 0 000 2z" fill="#0C0C14"/></svg>
+                    <div class="afm-sandbox-t">You are currently using the Affirm Developer Sandbox. This checkout does not create real loans.</div>
+                  </div>
+                </div>
+              </div>
+              <div class="embedded-confirm hidden" id="embedded-confirm-wrap">
+                <button id="embedded-confirm-btn" class="affirm-checkout-confirmation-button" data-stage="verify">Continue</button>
+                <div class="ec-hint">Rendered by Affirm.js into <code>#affirm-checkout-confirmation-button</code> — label updates as the shopper moves through checkout.</div>
+              </div>
+              <button class="afm-cancel hidden" id="embedded-cancel">Cancel and pay another way</button>
+            </div>
 
-      <div id="member-status" class="member-state hidden">
-        <div class="label">Affirm checkout status</div>
-        <div class="value" id="member-status-val">Waiting…</div>
-      </div>
+            <div class="cta">
+              <button id="btn-pay" class="btn-affirm">Pay with affirm</button>
+              <div class="int-note" id="int-note">Integration: <b>Direct API</b> — <code>affirm.checkout()</code> → confirm → server-side <code>authorize</code></div>
+            </div>
 
-      <div id="processing" class="processing hidden">
-        <div class="spinner"></div>
-        <div class="processing-text">Processing your order…</div>
-      </div>
+            <div id="member-status" class="member-state hidden">
+              <div class="label">Affirm checkout status</div>
+              <div class="value" id="member-status-val">Waiting…</div>
+            </div>
 
-      <div id="thankyou" class="thankyou hidden">
-        <div class="check">✓</div>
-        <h3>Thanks for your order!</h3>
-        <div class="order-id">Order # <span id="order-id">—</span></div>
-        <div style="margin-top: 8px; font-size: 12px;">Financed by Affirm</div>
-      </div>
+            <div id="processing" class="processing hidden">
+              <div class="spinner"></div>
+              <div class="processing-text">Processing your order…</div>
+            </div>
 
-      <!-- Direct API only: merchant back-office transaction management -->
-      <div id="backoffice" class="backoffice hidden">
-        <div class="bo-h">🗂️ Merchant order management <span style="font-weight:600;color:#8090ad;">(back office)</span></div>
-        <div class="bo-sub">Affirm Transaction API — manage the authorized charge (see Managing transactions). All calls key off Affirm's transaction / loan id.</div>
-        <div class="bo-state">
-          <span>txn / loan id (Affirm) <code id="bo-txn">—</code></span>
-          <span class="pill authorized" id="bo-pill">Authorized</span>
+            <div id="thankyou" class="thankyou hidden">
+              <div class="check">✓</div>
+              <h3>Thanks for your order!</h3>
+              <div class="order-id">Order # <span id="order-id">—</span></div>
+              <div style="margin-top: 8px; font-size: 12px;">Financed by Affirm</div>
+            </div>
+
+            <!-- Direct API only: merchant back-office transaction management -->
+            <div id="backoffice" class="backoffice hidden">
+              <div class="bo-h">🗂️ Merchant order management <span style="font-weight:600;color:#8090ad;">(back office)</span></div>
+              <div class="bo-sub">Affirm Transaction API — manage the authorized charge (see Managing transactions). All calls key off Affirm's transaction / loan id.</div>
+              <div class="bo-state">
+                <span>txn / loan id (Affirm) <code id="bo-txn">—</code></span>
+                <span class="pill authorized" id="bo-pill">Authorized</span>
+              </div>
+              <div class="bo-actions">
+                <button class="bo-capture" id="bo-capture">Capture</button>
+                <button id="bo-void">Void (auth only)</button>
+                <button id="bo-refund" disabled>Refund (full)</button>
+                <button id="bo-partial" disabled>Refund $50.00</button>
+              </div>
+            </div>
+          </div>
         </div>
-        <div class="bo-actions">
-          <button class="bo-capture" id="bo-capture">Capture</button>
-          <button id="bo-void">Void (auth only)</button>
-          <button id="bo-refund" disabled>Refund (full)</button>
-          <button id="bo-partial" disabled>Refund $50.00</button>
+
+        <div class="cart-col">
+          <div class="cart-heading">Your cart <span>(2 items)</span></div>
+          <div id="cart-items"></div>
+          <div class="totals" id="totals"></div>
         </div>
       </div>
     </div>
@@ -500,7 +689,7 @@
         </div>
         <div class="afm-resend">Didn't get a code? <a>Resend</a></div>
         <button class="afm-btn" id="afm-continue">Continue</button>
-        <p class="afm-fineprint" id="afm-verify-fineprint">Sandbox verification — code is prefilled for this demo. No SMS is sent. Type "123456" for the verification pin.</p>
+        <p class="afm-fineprint afm-verify-fineprint" id="afm-verify-fineprint">Sandbox verification — code is prefilled for this demo. No SMS is sent. Type "123456" for the verification pin.</p>
       </div>
 
       <div class="afm-screen hidden" id="afm-screen-terms">
@@ -549,7 +738,7 @@
     </div>
     <div class="status-bar">
       <span class="live-dot"></span>
-      <span>Embedded Affirm checkout · simulated (no live connection)</span>
+      <span>Affirm hosted checkout · simulated (no live connection)</span>
     </div>
   </div>
 </div>
@@ -875,6 +1064,29 @@ const FLOWS = {
       desc: 'The backend records "Affirm" as the payment method, creates the order, and tells the frontend to show confirmation.' },
     { actors: ['mfe','member'], kind: 'thank_you', label: 'Shopper sees the order confirmation',
       desc: 'Order placed. The Affirm loan and virtual card are finalized; capture / refund happen through the merchant\'s normal card processor.' }
+  ],
+  // Embedded Checkout: affirm.checkout.open() renders inline into two merchant-page
+  // elements instead of opening a modal or redirecting. From onSuccess onward it's
+  // "business as usual" — identical backend lifecycle to Direct API.
+  embedded: [
+    { actors: ['member','mfe'], kind: 'click', label: 'Shopper clicks "Pay with affirm"',
+      desc: 'The shopper picks Affirm at checkout. With Embedded Checkout, the flow expands inline in the payment section instead of opening a modal or redirecting.' },
+    { actors: ['mfe','mfe'], kind: 'render_embedded', label: 'Frontend renders the embedded checkout containers',
+      desc: 'The merchant adds two elements to its payment section: #affirm-embedded-checkout (where AFJS will render the checkout iframe) and #affirm-checkout-confirmation-button (a merchant-page-native confirmation control). Both start empty.' },
+    { actors: ['mfe','affe'], kind: 'sdk_checkout_embedded', label: 'Frontend: affirm.checkout(obj) → affirm.checkout.open({ onSuccess, onFail })',
+      desc: 'The SAME call used by Direct API. Because the two containers already exist in the DOM, Affirm.js renders the checkout inline into them instead of opening a modal or redirecting.' },
+    { actors: ['member','affe'], kind: 'inline_flow', wait: true, label: 'Shopper verifies & confirms the loan, inline',
+      desc: `Happy path: the shopper verifies (sandbox PIN ${SANDBOX_PIN}), picks a plan, and clicks the confirmation button — all without leaving the page — and onSuccess fires. Cancel path: clicking cancel fires onFail and the shopper picks another payment method.` },
+    { actors: ['affe','mfe'], kind: 'checkout_success', label: 'Affirm.js onSuccess(checkout_response) → checkout_token',
+      desc: 'On confirm, Affirm.js invokes the onSuccess callback in the browser with checkout_response.checkout_token — identical to Direct API. (On cancel/decline, onFail is called with an error instead.)' },
+    { actors: ['mbe','afbe'], kind: 'authorize', label: 'Backend → Affirm: Authorize (POST /transactions)',
+      desc: 'The frontend forwards the checkout_token to the backend, which exchanges it for a real charge by calling the Authorization API server-to-server — the same server-side flow as Direct API. Embedded Checkout only changes how the front end renders; the backend lifecycle is unchanged.' },
+    { actors: ['afbe','mbe'], kind: 'authorize_response', label: 'Affirm returns the Transaction object {id, amount}',
+      desc: 'Affirm returns the authorized transaction. id (= transaction id = loan id) is AFFIRM\'s identifier — the merchant stores it and uses it for capture / void / refund.' },
+    { actors: ['mbe','mfe'], kind: 'create_order', label: 'Validate auth → create order → show confirmation',
+      desc: 'The backend validates the auth response, records "Affirm" as the payment method with the transaction id, creates the order, and tells the frontend to show confirmation.' },
+    { actors: ['mfe','member'], kind: 'thank_you', label: 'Shopper sees the order confirmation',
+      desc: 'Order placed and authorized — the shopper never left the checkout page. Use the back-office card on the left to Capture (on fulfillment), Void (auth only), or Refund the Affirm transaction, exactly as with Direct API.' }
   ]
 };
 
@@ -886,7 +1098,9 @@ const DOCS = {
   voidTxn:   { url: 'https://docs.affirm.com/developers/reference/void_transaction',                label: 'Void Transaction' },
   refund:    { url: 'https://docs.affirm.com/developers/reference/refund_transaction',              label: 'Refund Transaction' },
   vcn:       { url: 'https://docs.affirm.com/developers/docs/open-affirm-virtual-card-checkout',    label: 'Open Affirm Virtual Card Checkout' },
-  itinerary: { url: 'https://docs.affirm.com/developers/reference/the-itinerary-object',           label: 'The Itinerary Object' }
+  itinerary: { url: 'https://docs.affirm.com/developers/reference/the-itinerary-object',           label: 'The Itinerary Object' },
+  // Preliminary/internal doc (not yet on docs.affirm.com) — see docs/ in this repo.
+  embedded:  { url: 'docs/integration-guide-embedded-checkout.md',                                  label: 'Embedded Checkout (preliminary, internal doc)' }
 };
 
 const ACTOR_NAMES = {
@@ -902,8 +1116,11 @@ let STEPS = FLOWS.direct;
 // Resolve the active step list for the current flow + VCN mode.
 function stepsForFlow() {
   if (state.flow === 'vcn') return state.vcnMode === 'server' ? FLOWS.vcnServer : FLOWS.vcnClient;
+  if (state.flow === 'embedded') return FLOWS.embedded;
   return FLOWS.direct;
 }
+// Flows that settle through the same Transaction API back-office (Capture/Void/Refund).
+function usesBackoffice() { return state.flow === 'direct' || state.flow === 'embedded'; }
 const state = {
   flow: 'direct',
   vcnMode: VCN_MODE_DEFAULT,
@@ -914,6 +1131,7 @@ const state = {
   replaying: false,
   replayTarget: -1,
   modalOpen: false,
+  embeddedOpen: false,
   modalConfirmed: false,
   cancelling: false,
   captured: false,
@@ -955,11 +1173,13 @@ function renderCurrentStep() {
     $('#cur-step-label').textContent = 'Pick a flow, then click "Auto-play" or "Step".';
     $('#cur-step-desc').textContent = state.flow === 'direct'
       ? 'Direct API: Affirm authorizes a loan, the merchant authorizes/captures the charge via Affirm\'s Transaction API.'
+      : state.flow === 'embedded'
+      ? 'Embedded Checkout: the Affirm checkout UI renders inline in the payment section — no modal, no redirect — then settles through the same Transaction API as Direct API.'
       : 'VCN: Affirm issues a one-time virtual card the merchant runs through its existing card processor.';
   } else if (state.idx >= STEPS.length) {
     $('#cur-step-num').textContent = 'Complete';
     $('#cur-step-label').textContent = '✅ Flow complete';
-    $('#cur-step-desc').textContent = state.flow === 'direct'
+    $('#cur-step-desc').textContent = usesBackoffice()
       ? 'Order authorized. Try the back-office actions (Capture / Void / Refund), or switch flows / Reset.'
       : 'Order placed. Switch to the Direct API flow or hit Reset to run it again.';
   } else {
@@ -1063,6 +1283,49 @@ async function runStep(step) {
         doc: DOCS.open
       });
       break;
+
+    /* ---- Embedded Checkout ---- */
+    case 'render_embedded':
+      if (state.replaying && state.idx < state.replayTarget) break;
+      $('#embedded-wrap').classList.remove('hidden');
+      $('#embedded-skeleton').classList.remove('hidden');
+      $('#embedded-mock').classList.add('hidden');
+      $('#embedded-confirm-wrap').classList.add('hidden');
+      $('#embedded-cancel').classList.add('hidden');
+      $('#member-status-val').textContent = 'Rendering the embedded checkout containers…';
+      logEvent('merchant', '🧩 Merchant renders two containers in the payment section',
+        '#affirm-embedded-checkout (iframe mount point) and #affirm-checkout-confirmation-button (confirmation control) are added to the DOM, empty, before Affirm.js populates them.',
+        DOCS.embedded);
+      break;
+
+    case 'sdk_checkout_embedded':
+      logDivider('Affirm.js · affirm.checkout(data)');
+      logApi({
+        method: 'POST', endpoint: 'affirm.checkout(data)',
+        payload: DIRECT_CHECKOUT, status: 200, durationMs: 8,
+        note: 'Same checkout OBJECT shape as Direct API — Embedded Checkout doesn\'t change the order payload.' + (state.travel ? ' Travel merchant: the itinerary object is included and is REQUIRED.' : ''),
+        doc: DOCS.embedded
+      });
+      logTravelMandatory();
+      logDivider('Affirm.js · affirm.checkout.open({ onSuccess, onFail })');
+      logApi({
+        method: 'POST', endpoint: 'affirm.checkout.open({ onSuccess, onFail })',
+        payload: { onSuccess: 'fn(checkout_response)', onFail: 'fn(error)' },
+        status: 200, durationMs: 4,
+        note: 'The SAME open() call used by Direct API. Because #affirm-embedded-checkout and #affirm-checkout-confirmation-button already exist in the DOM, Affirm.js renders the checkout inline into them instead of opening a modal or redirecting. Re-calling open() whenever the checkout amount changes reloads #affirm-embedded-checkout.',
+        doc: DOCS.embedded
+      });
+      if (!(state.replaying && state.idx < state.replayTarget)) openEmbedded();
+      break;
+
+    case 'inline_flow':
+      if (state.replaying && state.idx < state.replayTarget) break;
+      if (!state.embeddedOpen && !state.modalConfirmed) openEmbedded();
+      $('#member-status').classList.add('hidden');
+      if (state.modalConfirmed) break;
+      logEvent('user', '⏳ Awaiting shopper action in the embedded checkout', 'Click the confirmation button to continue/confirm (happy path) or "Cancel and pay another way" to take the cancel path — all without leaving this page.');
+      state.awaitingUser = true;
+      return new Promise((resolve) => { state._modalResolver = resolve; });
 
     case 'sdk_vcn':
       logDivider('Affirm.js · affirm.checkout.open_vcn()');
@@ -1186,7 +1449,7 @@ async function runStep(step) {
 
     /* ---- shared ---- */
     case 'create_order':
-      logEvent('merchant', '🧾 Order created', `Payment method: Affirm · order_id (merchant): ${ORDER_ID}` + (state.flow === 'direct' ? ` · txn / loan id (Affirm): ${TXN_ID}` : ''));
+      logEvent('merchant', '🧾 Order created', `Payment method: Affirm · order_id (merchant): ${ORDER_ID}` + (usesBackoffice() ? ` · txn / loan id (Affirm): ${TXN_ID}` : ''));
       break;
 
     case 'thank_you':
@@ -1195,7 +1458,7 @@ async function runStep(step) {
       $('#member-status').classList.add('hidden');
       $('#thankyou').classList.remove('hidden');
       $('#order-id').textContent = ORDER_ID;
-      if (state.flow === 'direct') openBackoffice();
+      if (usesBackoffice()) openBackoffice();
       break;
   }
 }
@@ -1218,15 +1481,17 @@ function showProcessing() {
   $('#member-status').classList.add('hidden');
   $('#processing').classList.remove('hidden');
 }
-function setAfmProgress(active) {
+// Progress-bar / plan-selection helpers, shared by the modal (#afm-progress /
+// #afm-plan) and the inline Embedded Checkout frame (#emb-progress / #emb-plan).
+function setProgress(rootSel, active) {
   const order = { verify: 0, plan: 1, review: 2 }[active] ?? 0;
-  $$('#afm-progress .afm-prog-step').forEach((el, i) => {
+  $$(`${rootSel} .afm-prog-step`).forEach((el, i) => {
     el.classList.toggle('current', i === order);
     el.classList.toggle('done', i < order);
   });
 }
-function selectAffirmPlan(row) {
-  $$('#afm-plan .afm-plan-row').forEach(r => {
+function selectPlanRow(rootSel, row) {
+  $$(`${rootSel} .afm-plan-row`).forEach(r => {
     const on = r === row;
     r.classList.toggle('afm-selected', on);
     r.querySelector('.afm-radio').classList.toggle('on', on);
@@ -1235,9 +1500,9 @@ function selectAffirmPlan(row) {
 function resetAffirmScreens() {
   $('#afm-screen-verify').classList.remove('hidden');
   $('#afm-screen-terms').classList.add('hidden');
-  setAfmProgress('verify');
+  setProgress('#afm-progress', 'verify');
   const first = $('#afm-plan .afm-plan-row');
-  if (first) selectAffirmPlan(first);
+  if (first) selectPlanRow('#afm-plan', first);
 }
 
 function onAffirmConfirmed() {
@@ -1245,7 +1510,7 @@ function onAffirmConfirmed() {
   closeModal();
   state.awaitingUser = false;
   state.modalConfirmed = true;
-  logEvent('user', '✅ Shopper confirmed the Affirm loan', 'Accepted Affirm\'s terms in the embedded checkout (happy path).');
+  logEvent('user', '✅ Shopper confirmed the Affirm loan', 'Accepted Affirm\'s terms in the hosted checkout (happy path).');
   if (state._modalResolver) { state._modalResolver(); state._modalResolver = null; }
   if (!state.playing) setTimeout(() => advance(), 0);
 }
@@ -1262,11 +1527,70 @@ function onAffirmCancelled() {
         : 'Shopper closed Affirm without confirming. The error callback fires; no virtual card was issued.'));
   cancelToStart();
 }
+
+/* ─────────────────────────────────────────────────────────────────
+   Embedded Checkout helpers (inline containers, not a modal)
+─────────────────────────────────────────────────────────────────── */
+function openEmbedded() {
+  state.embeddedOpen = true;
+  state.modalConfirmed = false;
+  $('#embedded-wrap').classList.remove('hidden');
+  $('#embedded-skeleton').classList.add('hidden');
+  $('#embedded-mock').classList.remove('hidden');
+  $('#embedded-confirm-wrap').classList.remove('hidden');
+  $('#embedded-cancel').classList.remove('hidden');
+  resetEmbeddedScreens();
+}
+function closeEmbedded() {
+  state.embeddedOpen = false;
+  $('#embedded-wrap').classList.add('hidden');
+}
+function resetEmbeddedScreens() {
+  $('#emb-screen-verify').classList.remove('hidden');
+  $('#emb-screen-terms').classList.add('hidden');
+  setProgress('#emb-progress', 'verify');
+  const first = $('#emb-plan .afm-plan-row');
+  if (first) selectPlanRow('#emb-plan', first);
+  updateEmbeddedConfirmButton('verify');
+}
+function embeddedPlanLabel() {
+  const sel = $('#emb-plan .afm-plan-row.afm-selected .afm-plan-mo');
+  return sel ? sel.textContent.trim() : money(ORDER_TOTAL);
+}
+// The confirmation button's label/state changes as the shopper moves through
+// the inline checkout, per the Embedded Checkout doc.
+function updateEmbeddedConfirmButton(stage) {
+  const btn = $('#embedded-confirm-btn');
+  if (!btn) return;
+  btn.dataset.stage = stage;
+  btn.textContent = stage === 'verify' ? 'Continue' : `Confirm ${embeddedPlanLabel()}`;
+}
+function onEmbeddedConfirmed() {
+  if (!state.embeddedOpen) return;
+  closeEmbedded();
+  showProcessing();
+  state.awaitingUser = false;
+  state.modalConfirmed = true;
+  logEvent('user', '✅ Shopper confirmed the Affirm loan', 'Accepted Affirm\'s terms inline, without ever leaving the merchant\'s checkout page (happy path).');
+  if (state._modalResolver) { state._modalResolver(); state._modalResolver = null; }
+  if (!state.playing) setTimeout(() => advance(), 0);
+}
+function onEmbeddedCancelled() {
+  if (!state.embeddedOpen) return;
+  state.awaitingUser = false;
+  state.cancelling = true;
+  closeEmbedded();
+  if (state._modalResolver) { state._modalResolver(); state._modalResolver = null; }
+  logEvent('affirm', '✖ Affirm checkout cancelled', 'Shopper clicked cancel inline without confirming. Affirm.js calls onFail(error) (or the redirect/cancel signal fires); no checkout_token is returned and no transaction is created.');
+  cancelToStart();
+}
+
 function cancelToStart() {
   pause();
   state.idx = -1;
   state.modalConfirmed = false;
   closeModal();
+  closeEmbedded();
   $('#member-status').classList.add('hidden');
   $('#processing').classList.add('hidden');
   $('#thankyou').classList.add('hidden');
@@ -1363,6 +1687,7 @@ async function advance() {
     setButtons();
     return;
   }
+  selectPayMethod('affirm');
   state.idx++;
   renderCurrentStep();
   setButtons();
@@ -1383,6 +1708,22 @@ function back() {
   if (state.awaitingUser || state.idx < 0) return;
   goTo(state.idx - 1);
 }
+// Payment-method radios (Credit/debit card / Affirm). Only Affirm is wired up
+// in this simulation — picking Card swaps in an inert placeholder panel
+// instead of the CTA/checkout UI. Advancing the flow (play/step/goTo) always
+// re-selects the Affirm radio (it's the only one that does anything), but the
+// Embedded Checkout flow starts with NO option pre-selected — the shopper has
+// to actively click Affirm to reveal the CTA, same as the Card (inert) option.
+function selectPayMethod(value) {
+  $$('.pay-option').forEach(el => el.classList.toggle('selected', el.dataset.pay === value));
+  $$('.pay-option input[name="paymethod"]').forEach(r => { r.checked = r.value === value; });
+  $('#pay-panel-affirm').classList.toggle('hidden', value !== 'affirm');
+  $('#pay-panel-inert').classList.toggle('hidden', !value || value === 'affirm');
+}
+// What the pay-method radios should show at idle (idx === -1): Direct API/VCN
+// always default to Affirm (they have no picker to leave unselected);
+// Embedded Checkout starts with nothing selected.
+function idlePayMethod() { return state.flow === 'embedded' ? null : 'affirm'; }
 function hideStorefrontStates() {
   $('#member-status').classList.add('hidden');
   $('#processing').classList.add('hidden');
@@ -1396,14 +1737,16 @@ function hideStorefrontStates() {
 async function goTo(targetIdx) {
   pause();
   targetIdx = Math.max(-1, Math.min(targetIdx, STEPS.length - 1));
+  selectPayMethod(targetIdx < 0 ? idlePayMethod() : 'affirm');
   state.awaitingUser = false;
   state.cancelling = false;
   state._modalResolver = null;
   closeModal();
+  closeEmbedded();
   clearLog();
   hideStorefrontStates();
-  const mfi = STEPS.findIndex(s => s.kind === 'modal_flow');
-  state.modalConfirmed = targetIdx > mfi;     // treat the modal as confirmed only once we're past it
+  const mfi = STEPS.findIndex(s => s.kind === 'modal_flow' || s.kind === 'inline_flow');
+  state.modalConfirmed = targetIdx > mfi;     // treat the checkout as confirmed only once we're past it
   state.replaying = true;
   state.replayTarget = targetIdx;
   state.idx = -1;
@@ -1416,6 +1759,7 @@ async function goTo(targetIdx) {
 }
 function reset() {
   pause();
+  selectPayMethod(idlePayMethod());
   state.idx = -1;
   state.awaitingUser = false;
   state.replaying = false;
@@ -1425,6 +1769,7 @@ function reset() {
   hideStorefrontStates();
   $('#choose-payment').classList.add('hidden');
   closeModal();
+  closeEmbedded();
   renderCurrentStep();
   setButtons();
 }
@@ -1439,6 +1784,8 @@ function setButtons() {
 function intNoteHtml() {
   if (state.flow === 'direct')
     return 'Integration: <b>Direct API</b> — <code>affirm.checkout()</code> → confirm → server-side <code>authorize</code>';
+  if (state.flow === 'embedded')
+    return 'Integration: <b>Embedded Checkout</b> — <code>affirm.checkout.open()</code> renders inline via <code>#affirm-embedded-checkout</code> + <code>#affirm-checkout-confirmation-button</code> → <code>onSuccess</code> → server-side <code>authorize</code>';
   return state.vcnMode === 'server'
     ? 'Integration: <b>Virtual Card (VCN)</b> — <code>affirm.checkout.open()</code> → <code>onSuccess(token)</code> → backend <code>POST /checkout/{token}/vcn</code> → charge via your PSP'
     : 'Integration: <b>Virtual Card (VCN)</b> — <code>affirm.checkout.open_vcn()</code> → card in the browser <code>success()</code> callback → charge via your PSP';
@@ -1448,6 +1795,10 @@ function syncFlowUI() {
   $$('#config-pop input[name="vcnmode"]').forEach(r => { r.checked = r.value === state.vcnMode; });
   $('#cfg-travel').checked = state.travel;
   $('#int-note').innerHTML = intNoteHtml();
+  // The payment-method radio picker + two-column layout is specific to the
+  // Embedded Checkout flow; Direct API / VCN keep the original single-column
+  // "Pay with affirm" storefront.
+  $('#storefront-grid').classList.toggle('embedded-layout', state.flow === 'embedded');
 }
 function setFlow(flow) {
   if (flow === state.flow) return;
@@ -1478,8 +1829,9 @@ function setTravel(on) {
    Apply DEMO_CONFIG to the storefront (brand, cart, totals, modal, pin)
 ─────────────────────────────────────────────────────────────────── */
 function setPlanRow(plan, amount, suffix) {
-  const el = $(`.afm-plan-row[data-plan="${plan}"] .afm-plan-mo`);
-  if (el) el.innerHTML = `<b>${amount}</b>${suffix}`;
+  // Updates BOTH the modal's plan rows and the inline Embedded Checkout frame's,
+  // since they share the same data-plan markup.
+  $$(`.afm-plan-row[data-plan="${plan}"] .afm-plan-mo`).forEach(el => { el.innerHTML = `<b>${amount}</b>${suffix}`; });
 }
 function applyConfig() {
   const b = DEMO_CONFIG.brand, rs = document.documentElement.style;
@@ -1513,20 +1865,22 @@ function applyConfig() {
   rows.push(`<div class="affirm-blurb">As low as <b>${money(LOWAS)}/mo</b> with <span class="affirm-name">Affirm</span></div>`);
   $('#totals').innerHTML = rows.join('');
 
-  $('#afm-amount-val').textContent = money(ORDER_TOTAL);
-  $('.afm-total-v').textContent = money(ORDER_TOTAL);
+  // $$ (not $) below so both the modal AND the inline Embedded Checkout frame stay in sync.
+  $$('.afm-amount-v').forEach(el => { el.textContent = money(ORDER_TOTAL); });
+  $$('.afm-total-v').forEach(el => { el.textContent = money(ORDER_TOTAL); });
   setPlanRow('p4', money(PAY4), '/payment · 4 payments');
   setPlanRow('p3', money(PLAN_3MO), '/mo · 3 months');
   setPlanRow('p6', money(PLAN_6MO), '/mo · 6 months');
 
-  $('#afm-verify-fineprint').textContent = `Sandbox verification — code is prefilled for this demo. No SMS is sent. Type "${SANDBOX_PIN}" for the verification pin.`;
-  $('#afm-sandbox-t').innerHTML = `<b>You are currently using the Affirm Developer Sandbox.</b> This checkout does not create real loans. Type "${SANDBOX_PIN}" for the verification pin.`;
+  $$('.afm-verify-fineprint').forEach(el => { el.textContent = `Sandbox verification — code is prefilled for this demo. No SMS is sent. Type "${SANDBOX_PIN}" for the verification pin.`; });
+  $$('.afm-sandbox-t').forEach(el => { el.innerHTML = `<b>You are currently using the Affirm Developer Sandbox.</b> This checkout does not create real loans. Type "${SANDBOX_PIN}" for the verification pin.`; });
 }
 
 /* ─────────────────────────────────────────────────────────────────
    Wire up
 ─────────────────────────────────────────────────────────────────── */
 applyConfig();
+selectPayMethod(idlePayMethod());
 rebuildCheckouts();   // apply DEMO_CONFIG.travel.enabled default
 syncFlowUI();
 buildSeqList();
@@ -1560,16 +1914,38 @@ $('#btn-pay').addEventListener('click', () => {
   $('#choose-payment').classList.add('hidden');
   if (state.idx === -1) play();
 });
+$$('.pay-option input[name="paymethod"]').forEach(r =>
+  r.addEventListener('change', () => selectPayMethod(r.value)));
 $('#btn-close-modal').addEventListener('click', () => onAffirmCancelled());
 $('#afm-nav-close').addEventListener('click', () => onAffirmCancelled());
 $('#afm-continue').addEventListener('click', () => {
   $('#afm-screen-verify').classList.add('hidden');
   $('#afm-screen-terms').classList.remove('hidden');
-  setAfmProgress('plan');
+  setProgress('#afm-progress', 'plan');
 });
-$$('#afm-plan .afm-plan-row').forEach(r => r.addEventListener('click', () => selectAffirmPlan(r)));
+$$('#afm-plan .afm-plan-row').forEach(r => r.addEventListener('click', () => selectPlanRow('#afm-plan', r)));
 $('#affirm-confirm').addEventListener('click', () => onAffirmConfirmed());
 $('#affirm-cancel').addEventListener('click', () => onAffirmCancelled());
+
+// Embedded Checkout: the confirmation button is a single control whose action/label
+// changes depending on the shopper's stage (verify → plan → confirm), per the doc.
+$('#embedded-confirm-btn').addEventListener('click', () => {
+  const btn = $('#embedded-confirm-btn');
+  if (btn.dataset.stage !== 'plan') {
+    $('#emb-screen-verify').classList.add('hidden');
+    $('#emb-screen-terms').classList.remove('hidden');
+    setProgress('#emb-progress', 'plan');
+    updateEmbeddedConfirmButton('plan');
+  } else {
+    onEmbeddedConfirmed();
+  }
+});
+$('#embedded-cancel').addEventListener('click', () => onEmbeddedCancelled());
+$$('#emb-plan .afm-plan-row').forEach(r => r.addEventListener('click', () => {
+  selectPlanRow('#emb-plan', r);
+  updateEmbeddedConfirmButton('plan');
+}));
+
 $('#bo-capture').addEventListener('click', boCapture);
 $('#bo-void').addEventListener('click', boVoid);
 $('#bo-refund').addEventListener('click', () => boRefund(ORDER_TOTAL, false));
