@@ -37,6 +37,18 @@ explicitly: prefix with `/affirm-integration-demo`.
 > In the VCN flow, change the payment processor name in the log from
 > "processor.com" to "Adyen".
 
+## Express Checkout
+
+> Turn on the **Express Checkout** flow by default, set the Shipping & Totals
+> endpoint to `https://acme.example.com/affirm/shipping`, and add a third
+> "Overnight" shipping option at $24.99 shipping / $28.10 tax.
+
+> Rebrand the demo for a travel merchant using **Express Checkout** and show me a
+> screenshot of the Shipping & Totals call in the log.
+
+> Screenshot the Express Checkout flow with "Simulate unsupported zone" turned on
+> so I can show the `422 UNSUPPORTED_SHIPPING_ZONE` path.
+
 ## Extend the flow
 
 > Add a step to the **Direct API** flow, right after Capture, showing the

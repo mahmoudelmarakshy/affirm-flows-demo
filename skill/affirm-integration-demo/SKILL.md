@@ -2,19 +2,20 @@
 name: affirm-integration-demo
 description: >-
   Create, rebrand, preview, and deploy the Affirm Direct API + Virtual Card
-  (VCN) integration demo (a single-file HTML mockup). Use when asked to build or
-  update an Affirm checkout demo for a merchant, rebrand the affirm-flows-demo,
-  edit its DEMO_CONFIG, change the cart / theme / IDs / sample card, add a step
-  or flow, or deploy the Affirm flows demo to GitHub Pages.
+  (VCN) + Express Checkout integration demo (a single-file HTML mockup). Use when
+  asked to build or update an Affirm checkout demo for a merchant, rebrand the
+  affirm-flows-demo, edit its DEMO_CONFIG, change the cart / theme / IDs / sample
+  card, configure the Express Checkout Shipping & Totals options, add a step or
+  flow, or deploy the Affirm flows demo to GitHub Pages.
 ---
 
 # Affirm Integration Demo
 
-A self-contained, single-file HTML demo of Affirm's two checkout integrations —
-**Direct API** and **Virtual Card (VCN)** — with a storefront, a sequence
-diagram, and a live API activity log. It is a **simulation**: no live API calls,
-no credentials, canned responses. Use it to walk a merchant through an
-integration.
+A self-contained, single-file HTML demo of Affirm's checkout integrations —
+**Direct API**, **Virtual Card (VCN)**, and **Express Checkout** — with a
+storefront, a sequence diagram, and a live API activity log. It is a
+**simulation**: no live API calls, no credentials, canned responses. Use it to
+walk a merchant through an integration.
 
 ## The template
 
@@ -43,7 +44,9 @@ Canonical source / updates: https://github.com/mahmoudelmarakshy/affirm-flows-de
 
 ### C. Add a step or a flow
 The engine is a small state machine:
-- `FLOWS.direct` / `FLOWS.vcn` — ordered step arrays (`actors`, `kind`, `label`, `desc`).
+- `FLOWS.direct` / `FLOWS.vcnClient` / `FLOWS.vcnServer` / `FLOWS.express` —
+  ordered step arrays (`actors`, `kind`, `label`, `desc`); `stepsForFlow()` picks
+  the active one from `state.flow` (+ `vcnMode`).
 - `runStep(step)` — a `switch` on `step.kind` driving the storefront, modal, and
   log (`logApi`, `logEvent`, `logDivider`).
 - `DOCS` — Affirm doc links; pass `doc: DOCS.x` to `logApi` / `logEvent` for any
@@ -63,6 +66,9 @@ flow: add a key to `FLOWS` plus a toggle button.
 | `ids` | `publicApiKey`, `orderId`, `transactionId`, `checkoutToken`, `checkoutId` | Identifiers in the logs (merchant `order_id` vs Affirm `id`/loan id) |
 | `customer` | `name`, `address`, `phone_number`, `email` | `shipping`/`billing` in the checkout object |
 | `card` | `number`, `cvv`, `expiration`, `cardholder_name`, `charge_ari`, `billing_address` | Sample VCN from the `success` callback |
+| `vcnMode` | `'client'` \| `'server'` | Default VCN handoff (live-toggleable in ⚙ Config) |
+| `travel` | `enabled`, `itinerary{}` | Travel mode: adds the **required** `itinerary` object (live-toggleable) |
+| `express` | `enabled`, `entrySurface`, `sAndTUrl`, `shippingOptions[]`, `selected`, `unsupportedZone` | Express Checkout: the merchant Shipping & Totals endpoint + returned options; `unsupportedZone` demos the `422` path. US-only. |
 | `sandboxPin`, `metadata`, `urls` | — | Verification pin, checkout `metadata`, Direct API confirm/cancel URLs |
 
 ## Preview

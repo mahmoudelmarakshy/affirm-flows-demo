@@ -1,6 +1,6 @@
-# Affirm Integration Demo — Direct API vs Virtual Card (VCN)
+# Affirm Integration Demo — Direct API · Virtual Card (VCN) · Express Checkout
 
-An interactive, **single-file** mockup that walks a merchant through Affirm's two
+An interactive, **single-file** mockup that walks a merchant through Affirm's
 checkout integrations side by side, with a toggle to switch between them. Built
 for Affirm Partner Engineering to **reuse per merchant** — rebrand it in ~5
 minutes by editing one config block, then share a link or a file.
@@ -19,6 +19,13 @@ minutes by editing one config block, then share a link or a file.
 - **Virtual Card (VCN)** — `affirm.checkout.open_vcn({ success, error, checkout_data })`
   with `use_vcn: true` → `success(card_details)` hands you a one-time virtual
   card you run through your **existing payment processor**.
+- **Express Checkout** — Affirm-hosted checkout that starts early (PDP/cart)
+  before the shipping address and total are known. `affirm.checkout({ checkout_variant: "express" })`
+  sends items + subtotal only; **Affirm calls your Shipping & Totals endpoint**
+  (server-to-server) for shipping options, then you finalize with **Read Checkout**
+  → **Authorize** and **validate the amount**. Builds on Direct API; **US-only**.
+  Includes a ⚙ Config toggle to simulate the merchant `422 UNSUPPORTED_SHIPPING_ZONE`
+  path.
 
 Three synced columns: a **storefront** (shopper view + back-office order
 management), the **sequence of operations**, and a live **backend/API activity
@@ -83,6 +90,7 @@ total, so the storefront and the checkout object can’t drift apart.
 | `card` | `number`, `cvv`, `expiration`, `cardholder_name`, `charge_ari`, `billing_address` | Sample VCN returned by the `success` callback / token exchange |
 | `vcnMode` | `'client'` or `'server'` | Default VCN handoff pattern: `client` = `affirm.checkout.open_vcn()` returns the card to the browser `success()` callback; `server` = standard `checkout.open()` → `onSuccess(token)` → backend `POST /checkout/{token}/vcn`. Viewers can also flip this live in the ⚙ Config popover. |
 | `travel` | `enabled`, `itinerary{}` | Travel-merchant mode. When on, the checkout object carries the **required** `itinerary` object (`travel_type`, `departure_time`/`arrival_time`, `origin`/`destination`, `passengers[]`) and the log flags it as mandatory. Toggle live in the ⚙ Config popover. See [the Itinerary Object](https://docs.affirm.com/developers/reference/the-itinerary-object). |
+| `express` | `enabled`, `entrySurface`, `sAndTUrl`, `shippingOptions[]`, `selected`, `unsupportedZone` | Express Checkout flow. `sAndTUrl` is the merchant **Shipping & Totals** endpoint Affirm calls; `shippingOptions[]` (`type`, `label`, `shipping`, `tax`) are what it returns (per-option `total` is computed). `selected` picks the shopper's option; `unsupportedZone` flips the S&T response to `422 UNSUPPORTED_SHIPPING_ZONE`. Shipping option + zone are also live-toggleable in the ⚙ Config popover. **US-only.** See [About Express Checkout](https://docs.affirm.com/developers/docs/express-checkout). |
 | `sandboxPin`, `metadata`, `urls` | — | Verification pin text, checkout `metadata`, Direct API confirm/cancel URLs |
 
 Everything below `DEMO_CONFIG` is the engine — you shouldn’t need to touch it.
@@ -105,8 +113,9 @@ Everything below `DEMO_CONFIG` is the engine — you shouldn’t need to touch i
 
 The engine is a small state machine:
 
-- **`FLOWS.direct` / `FLOWS.vcn`** — ordered arrays of steps. Each step has
-  `actors`, a `kind`, a `label`, and a `desc`.
+- **`FLOWS.direct` / `FLOWS.vcnClient` / `FLOWS.vcnServer` / `FLOWS.express`** —
+  ordered arrays of steps. Each step has `actors`, a `kind`, a `label`, and a
+  `desc`. `stepsForFlow()` picks the active array from `state.flow` (+ `vcnMode`).
 - **`runStep(step)`** — a `switch` on `step.kind` that drives the storefront,
   the modal, and the log (`logApi`, `logEvent`, `logDivider`).
 - **`DOCS`** — the Affirm doc links surfaced next to each call; pass `doc: DOCS.x`
@@ -122,6 +131,7 @@ To add a step: add an entry to the flow array and a matching `case` in
 - [Affirm checkout overview](https://docs.affirm.com/developers/docs/affirm-checkout-overview)
 - [Open Affirm Checkout](https://docs.affirm.com/developers/docs/open-affirm-checkout)
 - [Open Affirm Virtual Card Checkout](https://docs.affirm.com/developers/docs/open-affirm-virtual-card-checkout)
+- [About Express Checkout](https://docs.affirm.com/developers/docs/express-checkout) · [Set up Express Checkout](https://docs.affirm.com/developers/docs/set-up-express-checkout)
 - [Managing transactions](https://docs.affirm.com/developers/docs/managing-transactions)
 
 ### Authoritative endpoint reference (captured from Affirm's Integration Guide Generator)

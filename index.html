@@ -337,11 +337,12 @@
     <span class="x">×</span>
     <span class="affirm">affirm</span>
   </div>
-  <div class="title">Direct API &amp; Virtual Card (VCN) integration demo</div>
+  <div class="title">Direct API · Virtual Card (VCN) · Express Checkout integration demo</div>
   <div class="controls">
     <div class="flow-toggle" id="flow-toggle">
       <button data-flow="direct" class="on">Direct API</button>
       <button data-flow="vcn">Virtual Card (VCN)</button>
+      <button data-flow="express">Express Checkout</button>
     </div>
     <button id="btn-back" disabled title="Go back one step">⏮ Back</button>
     <button id="btn-step" disabled title="Advance one step">⏭ Step</button>
@@ -376,6 +377,15 @@
     <label class="config-opt">
       <input type="checkbox" id="cfg-travel">
       <span><b>Travel merchant</b> — add the <b>required</b> <code>itinerary</code> object to the checkout and flag it as mandatory in the log. <a href="https://docs.affirm.com/developers/reference/the-itinerary-object" target="_blank" rel="noopener">Itinerary docs ↗</a></span>
+    </label>
+  </div>
+  <div class="config-group" style="border-top:1px solid var(--border)">
+    <div class="config-label">Express Checkout</div>
+    <p class="config-sub">Affirm-hosted; the merchant's Shipping &amp; Totals endpoint returns these options. Applies to the <b>Express Checkout</b> flow. <a href="https://docs.affirm.com/developers/docs/express-checkout" target="_blank" rel="noopener">Express docs ↗</a></p>
+    <div id="cfg-express-options"></div>
+    <label class="config-opt">
+      <input type="checkbox" id="cfg-express-zone">
+      <span><b>Simulate unsupported zone</b> — the S&amp;T endpoint returns <code>422 UNSUPPORTED_SHIPPING_ZONE</code> and Affirm surfaces the error to the shopper.</span>
     </label>
   </div>
 </div>
@@ -656,6 +666,27 @@ const DEMO_CONFIG = {
     }
   },
 
+  // ── Express Checkout (Affirm-hosted, US-only) ────────────────────
+  // Express Checkout starts the purchase early (PDP / cart) before the shipping
+  // address or final total are known. Affirm hosts the flow and calls the
+  // merchant's Shipping & Totals (S&T) endpoint server-to-server with order_id +
+  // address; the merchant returns shipping options with per-option totals.
+  // Builds ON TOP of Direct API. US-only (country_code USA, locale en_US, USD).
+  // Ref: https://docs.affirm.com/developers/docs/express-checkout
+  express: {
+    enabled: false,
+    entrySurface: 'pdp',   // pdp | cart | checkout — where the Express button lives
+    sAndTUrl: 'https://northwind.example.com/affirm/shipping-and-totals',
+    // Options the S&T endpoint returns. shipping/tax in dollars; total is derived
+    // (express subtotal + shipping + tax). `selected` = which one the shopper picks.
+    shippingOptions: [
+      { type: 'standard', label: 'USPS Standard (5–7 days)', shipping: 0,     tax: 24.40 },
+      { type: 'two_day',  label: 'UPS 2-Day',                shipping: 12.99,  tax: 25.44 }
+    ],
+    selected: 1,
+    unsupportedZone: false  // flip to demo the merchant 422 UNSUPPORTED_SHIPPING_ZONE path
+  },
+
   // ── Misc ─────────────────────────────────────────────────────────
   sandboxPin: '123456',
   metadata: { platform_type: 'northwind-web', shipping_type: 'UPS Ground' },
@@ -698,6 +729,55 @@ const LOWAS = PAY4;                                                // "As low as
 const ITINERARY      = DEMO_CONFIG.travel.itinerary;
 const TRAVEL_DEFAULT = !!DEMO_CONFIG.travel.enabled;
 
+/* ── Express Checkout derived values ─────────────────────────────── */
+const EXPRESS_DEFAULT  = !!DEMO_CONFIG.express.enabled;
+const EXPRESS_SUBTOTAL = SUBTOTAL + ADJ_SUM;   // net merchandise (before shipping/tax)
+const EXPRESS_OPTIONS  = DEMO_CONFIG.express.shippingOptions.map(o => {
+  const shipC = toCents(o.shipping || 0), taxC = toCents(o.tax || 0);
+  return { type: o.type, label: o.label, shipC, taxC, total: EXPRESS_SUBTOTAL + shipC + taxC };
+});
+const EXPRESS_SEL_DEFAULT  = Math.max(0, Math.min(DEMO_CONFIG.express.selected | 0, EXPRESS_OPTIONS.length - 1));
+const EXPRESS_ZONE_DEFAULT = !!DEMO_CONFIG.express.unsupportedZone;
+
+// The reversed Shipping & Totals (S&T) call Affirm makes TO the merchant.
+const SAT_REQUEST = {
+  currency: DEMO_CONFIG.cart.currency,
+  order_id: ORDER_ID,
+  shipping: {
+    line1:   DEMO_CONFIG.customer.address.line1,
+    line2:   DEMO_CONFIG.customer.address.line2,
+    city:    DEMO_CONFIG.customer.address.city,
+    state:   DEMO_CONFIG.customer.address.state,
+    zipcode: DEMO_CONFIG.customer.address.zipcode,
+    country: DEMO_CONFIG.customer.address.country
+  }
+};
+const SAT_422 = { errors: [{ error_code: 'UNSUPPORTED_SHIPPING_ZONE', message: 'We do not ship to this location.', fields: ['shipping.state'] }] };
+function satResponse() {
+  return {
+    order_id: ORDER_ID,
+    currency: DEMO_CONFIG.cart.currency,
+    subtotal: EXPRESS_SUBTOTAL,
+    shipping_options: EXPRESS_OPTIONS.map(o => ({
+      shipping_type: o.type, shipping_label: o.label,
+      shipping_amount: o.shipC, tax_amount: o.taxC, total: o.total
+    }))
+  };
+}
+function readCheckoutResponse() {
+  const o = EXPRESS_OPTIONS[state.expressSel];
+  return {
+    checkout_token: CHECKOUT_TOKEN, order_id: ORDER_ID, currency: DEMO_CONFIG.cart.currency,
+    shipping: { name: DEMO_CONFIG.customer.name, address: DEMO_CONFIG.customer.address },
+    selected_shipping: { shipping_type: o.type, shipping_label: o.label, shipping_amount: o.shipC, tax_amount: o.taxC },
+    subtotal: EXPRESS_SUBTOTAL, total: o.total, status: 'confirmed'
+  };
+}
+function expressAuthResponse() {
+  const o = EXPRESS_OPTIONS[state.expressSel];
+  return { id: TXN_ID, checkout_token: CHECKOUT_TOKEN, order_id: ORDER_ID, amount: o.total, currency: 'USD', status: 'authorized', type: 'charge', created: '2026-06-05T18:04:11Z' };
+}
+
 function buildDiscounts() {
   const out = {};
   ADJ.forEach((a, i) => {
@@ -731,7 +811,7 @@ const baseCheckout = (extraMerchant) => {
 
 // Checkout payloads — recomputed by rebuildCheckouts() so the travel toggle takes
 // effect live. DIRECT_CHECKOUT also backs the server-mode VCN flow.
-let DIRECT_CHECKOUT, VCN_CHECKOUT;
+let DIRECT_CHECKOUT, VCN_CHECKOUT, EXPRESS_CHECKOUT;
 function rebuildCheckouts() {
   // Direct API: affirm.checkout(...) → onSuccess / onFail on affirm.checkout.open().
   DIRECT_CHECKOUT = baseCheckout({
@@ -742,6 +822,31 @@ function rebuildCheckouts() {
   // VCN (client mode): affirm.checkout.open_vcn({ checkout_data }). use_vcn: true
   // tells Affirm to generate virtual card details on loan origination.
   VCN_CHECKOUT = baseCheckout({ use_vcn: true });
+  // Express: items + subtotal ONLY (shipping + total omitted — Affirm derives them
+  // from the S&T response). checkout_variant/meta mark it Express; the callback URL
+  // is where Affirm fetches shipping & totals. US-only fields are explicit.
+  EXPRESS_CHECKOUT = {
+    checkout_variant: 'express',
+    country_code: 'USA',
+    locale: 'en_US',
+    order_id: ORDER_ID,
+    currency: DEMO_CONFIG.cart.currency,
+    subtotal: EXPRESS_SUBTOTAL,
+    items: ITEMS.map(i => ({ display_name: i.name, sku: i.sku, unit_price: i.cents, qty: i.qty })),
+    discounts: buildDiscounts(),
+    merchant: {
+      name: DEMO_CONFIG.brand.storeName,
+      public_api_key: PUBLIC_API_KEY,
+      checkout_variant: 'express',
+      user_confirmation_url: DEMO_CONFIG.urls.confirm,
+      user_cancel_url: DEMO_CONFIG.urls.cancel,
+      user_confirmation_url_action: 'POST',
+      merchant_shipping_and_totals_callback_url: DEMO_CONFIG.express.sAndTUrl
+    },
+    metadata: Object.assign({ mode: 'modal' }, DEMO_CONFIG.metadata),
+    meta: { is_express_checkout: true, locale: 'en_US' }
+  };
+  if (state.travel) EXPRESS_CHECKOUT.itinerary = ITINERARY;
 }
 // NOTE: not called here — `state` is declared further down (TDZ). The startup
 // wire-up calls rebuildCheckouts() once `state` exists, and setTravel() re-runs it.
@@ -875,6 +980,37 @@ const FLOWS = {
       desc: 'The backend records "Affirm" as the payment method, creates the order, and tells the frontend to show confirmation.' },
     { actors: ['mfe','member'], kind: 'thank_you', label: 'Shopper sees the order confirmation',
       desc: 'Order placed. The Affirm loan and virtual card are finalized; capture / refund happen through the merchant\'s normal card processor.' }
+  ],
+  // Express Checkout: Affirm-hosted; starts before shipping/total are known. Affirm
+  // calls the merchant Shipping & Totals endpoint, then the merchant finalizes with
+  // Read Checkout + Authorize. Builds on Direct API. US-only.
+  express: [
+    { actors: ['member','mfe'], kind: 'express_click', label: 'Shopper clicks the Affirm Express Checkout button',
+      desc: 'On a PDP or cart page — before the shipping address or final total are known. AFJS renders the Express button; clicking it launches Affirm\'s hosted flow.' },
+    { actors: ['mfe','affe'], kind: 'sdk_express', label: 'Frontend: affirm.checkout({ checkout_variant: "express" }) → open()',
+      desc: 'The checkout object carries items + subtotal ONLY — shipping and total are omitted (Affirm collects the address and derives them). checkout_variant:"express" + meta.is_express_checkout mark it Express; merchant_shipping_and_totals_callback_url tells Affirm where to fetch shipping & totals.' },
+    { actors: ['affe','member'], kind: 'open_modal', label: 'Affirm-hosted Express Checkout opens',
+      desc: 'Affirm renders its hosted checkout and prompts the shopper for a shipping address.' },
+    { actors: ['member','affe'], kind: 'address_entry', label: 'Shopper enters a shipping address',
+      desc: 'Affirm validates the address, then calls the merchant\'s Shipping & Totals endpoint to price shipping and tax for that destination.' },
+    { actors: ['afbe','mbe'], kind: 'shipping_totals', wait: false, label: 'Affirm → Merchant: Shipping & Totals endpoint (server-to-server)',
+      desc: 'THE call that defines Express Checkout. Affirm POSTs order_id + shipping address to the merchant\'s S&T endpoint; the merchant returns shipping options with per-option totals. Shopper-blocking: <5s SLA, idempotent, signed with X-Affirm-Signature.' },
+    { actors: ['member','affe'], kind: 'select_shipping', label: 'Shopper selects a shipping option',
+      desc: 'The shopper picks a shipping method; Affirm shows financing terms for that final total.' },
+    { actors: ['member','affe'], kind: 'modal_flow', wait: true, label: 'Shopper reviews terms & confirms the loan',
+      desc: `Happy path: the shopper confirms Affirm's terms (sandbox PIN ${SANDBOX_PIN}) and Affirm returns them to user_confirmation_url. Cancel path: the shopper is sent to user_cancel_url and no token is returned.` },
+    { actors: ['affe','mbe'], kind: 'express_confirm', label: 'Affirm → merchant: user_confirmation_url (POST) with checkout_token',
+      desc: 'On confirmation Affirm returns the shopper to user_confirmation_url with the checkout_token in the POST body (user_confirmation_url_action: "POST"). The backend uses it to finalize.' },
+    { actors: ['mbe','afbe'], kind: 'read_checkout', label: 'Backend → Affirm: Read Checkout (GET /api/v2/checkout/{token})',
+      desc: 'The backend reads the finalized checkout: shipping address, the shipping option the shopper chose, and the amounts Affirm used — including the total to validate.' },
+    { actors: ['mbe','afbe'], kind: 'express_authorize', label: 'Backend → Affirm: Authorize (POST /api/v2/charges)',
+      desc: 'The backend authorizes the loan with the checkout_token. Affirm returns the charge/transaction id and the authorized amount.' },
+    { actors: ['mbe','mbe'], kind: 'validate_amount', label: 'Validate authorized amount == S&T total',
+      desc: 'Before fulfilling, confirm the authorized amount equals the total your S&T endpoint returned for the selected option. On mismatch: do NOT fulfill — void and investigate.' },
+    { actors: ['mbe','mfe'], kind: 'create_order', label: 'Create order → show confirmation',
+      desc: 'The backend records "Affirm" as the payment method with the transaction id, creates the order, and tells the frontend to show confirmation.' },
+    { actors: ['mfe','member'], kind: 'thank_you', label: 'Shopper sees the order confirmation',
+      desc: 'Order placed and authorized. Use the back-office card to Capture (on fulfillment), Void (auth only), or Refund the Affirm transaction.' }
   ]
 };
 
@@ -886,7 +1022,9 @@ const DOCS = {
   voidTxn:   { url: 'https://docs.affirm.com/developers/reference/void_transaction',                label: 'Void Transaction' },
   refund:    { url: 'https://docs.affirm.com/developers/reference/refund_transaction',              label: 'Refund Transaction' },
   vcn:       { url: 'https://docs.affirm.com/developers/docs/open-affirm-virtual-card-checkout',    label: 'Open Affirm Virtual Card Checkout' },
-  itinerary: { url: 'https://docs.affirm.com/developers/reference/the-itinerary-object',           label: 'The Itinerary Object' }
+  itinerary: { url: 'https://docs.affirm.com/developers/reference/the-itinerary-object',           label: 'The Itinerary Object' },
+  express:      { url: 'https://docs.affirm.com/developers/docs/express-checkout',                 label: 'About Express Checkout' },
+  expressSetup: { url: 'https://docs.affirm.com/developers/docs/set-up-express-checkout',          label: 'Set up Express Checkout' }
 };
 
 const ACTOR_NAMES = {
@@ -901,6 +1039,7 @@ let STEPS = FLOWS.direct;
 
 // Resolve the active step list for the current flow + VCN mode.
 function stepsForFlow() {
+  if (state.flow === 'express') return FLOWS.express;
   if (state.flow === 'vcn') return state.vcnMode === 'server' ? FLOWS.vcnServer : FLOWS.vcnClient;
   return FLOWS.direct;
 }
@@ -908,6 +1047,8 @@ const state = {
   flow: 'direct',
   vcnMode: VCN_MODE_DEFAULT,
   travel: TRAVEL_DEFAULT,
+  expressSel: EXPRESS_SEL_DEFAULT,
+  expressZone: EXPRESS_ZONE_DEFAULT,
   idx: -1,
   playing: false,
   awaitingUser: false,
@@ -953,15 +1094,16 @@ function renderCurrentStep() {
   if (state.idx < 0) {
     $('#cur-step-num').textContent = 'Idle';
     $('#cur-step-label').textContent = 'Pick a flow, then click "Auto-play" or "Step".';
-    $('#cur-step-desc').textContent = state.flow === 'direct'
-      ? 'Direct API: Affirm authorizes a loan, the merchant authorizes/captures the charge via Affirm\'s Transaction API.'
-      : 'VCN: Affirm issues a one-time virtual card the merchant runs through its existing card processor.';
+    $('#cur-step-desc').textContent =
+      state.flow === 'direct'  ? 'Direct API: Affirm authorizes a loan, the merchant authorizes/captures the charge via Affirm\'s Transaction API.' :
+      state.flow === 'express' ? 'Express Checkout: Affirm-hosted; starts before shipping/total are known. Affirm calls your Shipping & Totals endpoint for options, then you Read Checkout + Authorize. Builds on Direct API; US-only.' :
+      'VCN: Affirm issues a one-time virtual card the merchant runs through its existing card processor.';
   } else if (state.idx >= STEPS.length) {
     $('#cur-step-num').textContent = 'Complete';
     $('#cur-step-label').textContent = '✅ Flow complete';
-    $('#cur-step-desc').textContent = state.flow === 'direct'
-      ? 'Order authorized. Try the back-office actions (Capture / Void / Refund), or switch flows / Reset.'
-      : 'Order placed. Switch to the Direct API flow or hit Reset to run it again.';
+    $('#cur-step-desc').textContent = state.flow === 'vcn'
+      ? 'Order placed. Switch to the Direct API flow or hit Reset to run it again.'
+      : 'Order authorized. Try the back-office actions (Capture / Void / Refund), or switch flows / Reset.';
   } else {
     $('#cur-step-num').textContent = `Step ${state.idx + 1} / ${STEPS.length}`;
     $('#cur-step-label').textContent = s.label;
@@ -1078,19 +1220,17 @@ async function runStep(step) {
 
     case 'open_modal':
       if (state.replaying && state.idx < state.replayTarget) break;
-      openModal((state.flow === 'vcn' && state.vcnMode === 'client')
-        ? 'https://sandbox.affirm.com/u/vcn/' + CHECKOUT_TOKEN
-        : 'https://sandbox.affirm.com/u/checkout/' + AUTH_RESPONSE.checkout_id);
-      $('#member-status-val').textContent = 'Affirm checkout open · waiting for the shopper to confirm.';
+      openModal(modalUrl());
+      $('#member-status-val').textContent = state.flow === 'express'
+        ? 'Affirm Express Checkout open · shopper entering address.'
+        : 'Affirm checkout open · waiting for the shopper to confirm.';
       logEvent('user', '⏳ Awaiting shopper action in the Affirm modal', 'Click "Choose this plan" to confirm (happy path) or "Cancel" to take the cancel path.');
       break;
 
     case 'modal_flow':
       if (state.replaying && state.idx < state.replayTarget) break;
       if (!state.modalOpen && !state.modalConfirmed) {
-        openModal((state.flow === 'vcn' && state.vcnMode === 'client')
-          ? 'https://sandbox.affirm.com/u/vcn/' + CHECKOUT_TOKEN
-          : 'https://sandbox.affirm.com/u/checkout/' + AUTH_RESPONSE.checkout_id);
+        openModal(modalUrl());
       }
       showProcessing();
       if (state.modalConfirmed) break;
@@ -1184,9 +1324,119 @@ async function runStep(step) {
       $('#member-status-val').textContent = 'Payment approved · creating order…';
       break;
 
+    /* ---- Express Checkout ---- */
+    case 'express_click':
+      logEvent('user', '👆 Shopper clicked the Affirm Express Checkout button',
+        `Entry surface: ${DEMO_CONFIG.express.entrySurface.toUpperCase()} · the shipping address & final total are NOT known yet.`, DOCS.express);
+      $('#btn-pay').disabled = true;
+      $('#member-status').classList.remove('hidden');
+      $('#member-status-val').textContent = 'Launching Affirm Express Checkout…';
+      break;
+
+    case 'sdk_express':
+      logDivider('Affirm.js · affirm.checkout({ checkout_variant: "express" }) → open()');
+      logApi({
+        method: 'POST', endpoint: 'affirm.checkout({ checkout_variant: "express" }) → open()',
+        payload: EXPRESS_CHECKOUT, status: 200, durationMs: 9,
+        note: 'Express checkout object: items + subtotal ONLY — shipping and total are omitted (Affirm collects the address and derives them). meta.is_express_checkout:true + checkout_variant:"express" mark it Express; merchant_shipping_and_totals_callback_url is where Affirm fetches shipping & totals. Under the hood AFJS POSTs this to /api/checkout-bff/v1/create-checkout. US-only: country_code USA, locale en_US, USD.' + (state.travel ? ' Travel merchant: the itinerary object is included and is REQUIRED.' : ''),
+        doc: DOCS.expressSetup
+      });
+      logTravelMandatory();
+      break;
+
+    case 'address_entry':
+      logEvent('affirm', '🏠 Shopper entered a shipping address in the Affirm-hosted UI',
+        `${SAT_REQUEST.shipping.line1}, ${SAT_REQUEST.shipping.city}, ${SAT_REQUEST.shipping.state} ${SAT_REQUEST.shipping.zipcode} · Affirm validates it, then calls the merchant Shipping & Totals endpoint.`);
+      break;
+
+    case 'shipping_totals': {
+      logDivider('POST · Merchant Shipping & Totals endpoint  (Affirm → merchant, server-to-server)');
+      const t0 = performance.now();
+      if (!state.replaying) await sleep(360 + Math.random()*220);
+      if (state.expressZone) {
+        logApi({
+          method: 'POST', endpoint: DEMO_CONFIG.express.sAndTUrl,
+          payload: SAT_REQUEST, response: SAT_422, status: 422,
+          durationMs: state.replaying ? 300 : Math.round(performance.now()-t0),
+          note: 'The merchant returns 422 with a structured error (UNSUPPORTED_SHIPPING_ZONE). Affirm surfaces this to the shopper instead of failing the flow — the shopper sees "we don\'t ship here" and can try a different address. (422 is a handled outcome, not a failure; only 500 is retried.)',
+          doc: DOCS.express
+        });
+        if (!state.replaying) {
+          logEvent('affirm', '⚠ Affirm surfaced the shipping error to the shopper', 'No shipping options for this address (422). Turn off "Simulate unsupported zone" in ⚙ Config to complete the flow.');
+          cancelToStart();
+          return;
+        }
+        break;
+      }
+      logApi({
+        method: 'POST', endpoint: DEMO_CONFIG.express.sAndTUrl,
+        payload: SAT_REQUEST, response: satResponse(), status: 200,
+        durationMs: state.replaying ? 300 : Math.round(performance.now()-t0),
+        note: 'THE call that defines Express Checkout. Affirm POSTs (server-to-server) with order_id + shipping address; the merchant returns shipping options with per-option totals (amounts in cents). Shopper-blocking: respond in <5s (target sub-second), be idempotent, and reply 200/422 directly (no 3xx). Verify X-Affirm-Signature (HMAC-SHA512 over "<timestamp>.<raw_body>" with your private key).',
+        doc: DOCS.express
+      });
+      break;
+    }
+
+    case 'select_shipping': {
+      const o = EXPRESS_OPTIONS[state.expressSel];
+      logEvent('user', '🚚 Shopper selected a shipping option',
+        `${o.label} · shipping ${money(o.shipC)} · tax ${money(o.taxC)} → total ${money(o.total)}. Affirm now shows financing terms for this total.`);
+      break;
+    }
+
+    case 'express_confirm':
+      logDivider('Affirm → merchant · user_confirmation_url (POST)');
+      logApi({
+        method: 'POST', endpoint: DEMO_CONFIG.urls.confirm,
+        payload: { checkout_token: CHECKOUT_TOKEN }, status: 200, durationMs: 0,
+        note: 'After the shopper confirms, Affirm returns them to user_confirmation_url with the checkout_token in the POST body (user_confirmation_url_action: "POST"). The backend uses it to read the finalized checkout and authorize.',
+        doc: DOCS.expressSetup
+      });
+      logEvent('affirm', '◀ Affirm returned the shopper with a checkout_token', `checkout_token: ${CHECKOUT_TOKEN}`);
+      $('#member-status-val').textContent = 'Confirmed · finalizing order…';
+      break;
+
+    case 'read_checkout': {
+      logDivider('GET · Read Checkout');
+      const t0 = performance.now();
+      if (!state.replaying) await sleep(300 + Math.random()*200);
+      logApi({
+        method: 'GET', endpoint: `https://api.global.sandbox.affirm.com/api/v2/checkout/${CHECKOUT_TOKEN}`,
+        response: readCheckoutResponse(), status: 200, durationMs: state.replaying ? 320 : Math.round(performance.now()-t0),
+        note: 'Server-to-server (public + private key Basic auth). Retrieves the finalized order Affirm built: shipping address, the shipping option the shopper chose, and the amounts Affirm used — including the total to validate against your S&T response.',
+        doc: DOCS.expressSetup
+      });
+      break;
+    }
+
+    case 'express_authorize': {
+      logDivider('POST · Authorize (Charges API)');
+      const t0 = performance.now();
+      if (!state.replaying) await sleep(420 + Math.random()*260);
+      logApi({
+        method: 'POST', endpoint: 'https://api.global.sandbox.affirm.com/api/v2/charges',
+        payload: { checkout_token: CHECKOUT_TOKEN }, response: expressAuthResponse(), status: 201,
+        durationMs: state.replaying ? 540 : Math.round(performance.now()-t0),
+        note: 'Authorize the loan with the checkout_token (per the Express runbook: POST /api/v2/charges). The response carries the charge / transaction id and the authorized amount.',
+        doc: DOCS.authorize
+      });
+      logEvent('affirm', '◀ Affirm authorized the charge', `id (Affirm): ${TXN_ID} · amount: ${money(EXPRESS_OPTIONS[state.expressSel].total)} · status: authorized`, DOCS.authorize);
+      $('#member-status-val').textContent = 'Loan authorized · validating total…';
+      break;
+    }
+
+    case 'validate_amount': {
+      const o = EXPRESS_OPTIONS[state.expressSel];
+      logEvent('merchant', '✅ Amount validated before fulfillment',
+        `Authorized ${money(o.total)} == S&T total for "${o.label}" (${money(o.total)}). Match — safe to create the order. (Mismatch → do NOT fulfill: void & investigate.)`);
+      $('#member-status-val').textContent = 'Total validated · creating order…';
+      break;
+    }
+
     /* ---- shared ---- */
     case 'create_order':
-      logEvent('merchant', '🧾 Order created', `Payment method: Affirm · order_id (merchant): ${ORDER_ID}` + (state.flow === 'direct' ? ` · txn / loan id (Affirm): ${TXN_ID}` : ''));
+      logEvent('merchant', '🧾 Order created', `Payment method: Affirm · order_id (merchant): ${ORDER_ID}` + ((state.flow === 'direct' || state.flow === 'express') ? ` · txn / loan id (Affirm): ${TXN_ID}` : ''));
       break;
 
     case 'thank_you':
@@ -1195,7 +1445,7 @@ async function runStep(step) {
       $('#member-status').classList.add('hidden');
       $('#thankyou').classList.remove('hidden');
       $('#order-id').textContent = ORDER_ID;
-      if (state.flow === 'direct') openBackoffice();
+      if (state.flow === 'direct' || state.flow === 'express') openBackoffice();
       break;
   }
 }
@@ -1203,6 +1453,12 @@ async function runStep(step) {
 /* ─────────────────────────────────────────────────────────────────
    Modal helpers
 ─────────────────────────────────────────────────────────────────── */
+function modalUrl() {
+  if (state.flow === 'express') return 'https://sandbox.affirm.com/u/express/' + ORDER_ID;
+  return (state.flow === 'vcn' && state.vcnMode === 'client')
+    ? 'https://sandbox.affirm.com/u/vcn/' + CHECKOUT_TOKEN
+    : 'https://sandbox.affirm.com/u/checkout/' + AUTH_RESPONSE.checkout_id;
+}
 function openModal(url) {
   state.modalOpen = true;
   state.modalConfirmed = false;
@@ -1255,11 +1511,14 @@ function onAffirmCancelled() {
   state.cancelling = true;
   closeModal();
   if (state._modalResolver) { state._modalResolver(); state._modalResolver = null; }
-  logEvent('affirm', '✖ Affirm checkout cancelled', state.flow === 'direct'
-    ? 'Shopper closed Affirm without confirming. Affirm.js calls onFail(error); no checkout_token is returned and no transaction is created.'
-    : (state.vcnMode === 'server'
-        ? 'Shopper closed Affirm without confirming. Affirm.js calls onFail(error); no checkout_token is returned, so no virtual card is issued.'
-        : 'Shopper closed Affirm without confirming. The error callback fires; no virtual card was issued.'));
+  logEvent('affirm', '✖ Affirm checkout cancelled',
+    state.flow === 'express'
+      ? 'Shopper cancelled or abandoned the Affirm-hosted Express flow. Affirm sends them to user_cancel_url; no checkout_token is returned and no charge is created.'
+    : state.flow === 'direct'
+      ? 'Shopper closed Affirm without confirming. Affirm.js calls onFail(error); no checkout_token is returned and no transaction is created.'
+      : (state.vcnMode === 'server'
+          ? 'Shopper closed Affirm without confirming. Affirm.js calls onFail(error); no checkout_token is returned, so no virtual card is issued.'
+          : 'Shopper closed Affirm without confirming. The error callback fires; no virtual card was issued.'));
   cancelToStart();
 }
 function cancelToStart() {
@@ -1439,6 +1698,8 @@ function setButtons() {
 function intNoteHtml() {
   if (state.flow === 'direct')
     return 'Integration: <b>Direct API</b> — <code>affirm.checkout()</code> → confirm → server-side <code>authorize</code>';
+  if (state.flow === 'express')
+    return 'Integration: <b>Express Checkout</b> — <code>affirm.checkout({checkout_variant:"express"})</code> → Affirm calls your <b>Shipping &amp; Totals</b> endpoint → Read Checkout → <code>authorize</code>';
   return state.vcnMode === 'server'
     ? 'Integration: <b>Virtual Card (VCN)</b> — <code>affirm.checkout.open()</code> → <code>onSuccess(token)</code> → backend <code>POST /checkout/{token}/vcn</code> → charge via your PSP'
     : 'Integration: <b>Virtual Card (VCN)</b> — <code>affirm.checkout.open_vcn()</code> → card in the browser <code>success()</code> callback → charge via your PSP';
@@ -1447,6 +1708,8 @@ function syncFlowUI() {
   $$('#flow-toggle button').forEach(b => b.classList.toggle('on', b.dataset.flow === state.flow));
   $$('#config-pop input[name="vcnmode"]').forEach(r => { r.checked = r.value === state.vcnMode; });
   $('#cfg-travel').checked = state.travel;
+  $$('#cfg-express-options input[name="expsel"]').forEach(r => { r.checked = Number(r.value) === state.expressSel; });
+  const ez = $('#cfg-express-zone'); if (ez) ez.checked = state.expressZone;
   $('#int-note').innerHTML = intNoteHtml();
 }
 function setFlow(flow) {
@@ -1472,6 +1735,20 @@ function setTravel(on) {
   rebuildCheckouts();   // add / remove the itinerary object from the checkout payloads
   syncFlowUI();
   reset();
+}
+function setExpressSel(i) {
+  i = Math.max(0, Math.min(i | 0, EXPRESS_OPTIONS.length - 1));
+  if (i === state.expressSel) return;
+  state.expressSel = i;
+  syncFlowUI();
+  if (state.flow === 'express') reset();
+}
+function setExpressZone(on) {
+  on = !!on;
+  if (on === state.expressZone) return;
+  state.expressZone = on;
+  syncFlowUI();
+  if (state.flow === 'express') reset();
 }
 
 /* ─────────────────────────────────────────────────────────────────
@@ -1519,6 +1796,12 @@ function applyConfig() {
   setPlanRow('p3', money(PLAN_3MO), '/mo · 3 months');
   setPlanRow('p6', money(PLAN_6MO), '/mo · 6 months');
 
+  $('#cfg-express-options').innerHTML = EXPRESS_OPTIONS.map((o, i) => `
+    <label class="config-opt">
+      <input type="radio" name="expsel" value="${i}">
+      <span><b>${escapeHtml(o.label)}</b> — shipping ${money(o.shipC)} · tax ${money(o.taxC)} → total <b>${money(o.total)}</b></span>
+    </label>`).join('');
+
   $('#afm-verify-fineprint').textContent = `Sandbox verification — code is prefilled for this demo. No SMS is sent. Type "${SANDBOX_PIN}" for the verification pin.`;
   $('#afm-sandbox-t').innerHTML = `<b>You are currently using the Affirm Developer Sandbox.</b> This checkout does not create real loans. Type "${SANDBOX_PIN}" for the verification pin.`;
 }
@@ -1546,6 +1829,11 @@ $('#config-pop').addEventListener('click', (e) => e.stopPropagation());
 $$('#config-pop input[name="vcnmode"]').forEach(r =>
   r.addEventListener('change', () => setVcnMode(r.value)));
 $('#cfg-travel').addEventListener('change', (e) => setTravel(e.target.checked));
+$('#cfg-express-options').addEventListener('change', (e) => {
+  const r = e.target.closest('input[name="expsel"]');
+  if (r) setExpressSel(Number(r.value));
+});
+$('#cfg-express-zone').addEventListener('change', (e) => setExpressZone(e.target.checked));
 document.addEventListener('click', () => closeConfig());
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeConfig(); });
 $('#btn-play').addEventListener('click', () => state.playing ? pause() : play());
