@@ -128,8 +128,6 @@
   .storefront-grid.embedded-layout {
     flex-direction: row; flex-wrap: wrap; gap: 22px; align-items: flex-start;
   }
-  .storefront-grid.embedded-layout .cart-col { flex: 0 1 300px; min-width: 240px; max-width: 320px; width: auto; }
-  .storefront-grid.embedded-layout .payment-col { flex: 1 1 300px; min-width: 260px; width: auto; }
 
   /* Payment-method radios only appear for the Embedded Checkout flow; Direct
      API / VCN keep the single "Pay with affirm" CTA (no method picker). */
@@ -223,6 +221,35 @@
   .thankyou h3 { margin: 0 0 4px; color: #0C5B36; }
   .thankyou .order-id { color: var(--muted); font-size: 12px; }
 
+  /* Step 9 (order confirmation): the entire shopper view collapses down to
+     just the confirmation card — nav, cart, and payment method UI all hide.
+     (Merchant back-office management, if present, still shows below it —
+     that's a separate post-purchase feature, not part of the checkout UI.) */
+  #member-view.order-complete { display: flex; flex-direction: column; }
+  #member-view.order-complete .merch-nav,
+  #member-view.order-complete .merch-subnav,
+  #member-view.order-complete .cart-col,
+  #member-view.order-complete .pay-heading,
+  #member-view.order-complete .pay-options,
+  #member-view.order-complete #choose-payment,
+  #member-view.order-complete #embedded-wrap,
+  #member-view.order-complete .cta,
+  #member-view.order-complete #member-status,
+  #member-view.order-complete #processing { display: none !important; }
+
+  /* Embedded checkout has its own inline status inside the mock UI — the
+     generic "Affirm checkout status" outlet is only used by Direct API/VCN. */
+  .storefront-grid.embedded-layout #member-status { display: none !important; }
+  #member-view.order-complete .storefront-grid { flex: 1; display: flex; }
+  #member-view.order-complete .payment-col { flex: 1 1 100%; max-width: none; width: 100%; }
+  #member-view.order-complete #pay-panel-affirm { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+  #member-view.order-complete .thankyou {
+    margin-top: 0; padding: 40px 28px; max-width: 380px; margin-left: auto; margin-right: auto;
+  }
+  #member-view.order-complete .thankyou .check { width: 64px; height: 64px; font-size: 34px; }
+  #member-view.order-complete .thankyou h3 { font-size: 20px; }
+  #member-view.order-complete .thankyou .order-id { font-size: 13px; margin-top: 4px; }
+
   /* back-office (merchant order management) — Direct API only */
   .backoffice { margin-top: 16px; padding: 14px; border: 1px solid #C9D4E6; border-radius: 10px; background: #F6F8FC; }
   .backoffice .bo-h { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; color: #41506B; display: flex; align-items: center; gap: 8px; }
@@ -255,6 +282,15 @@
   .embedded-skeleton .sk-line { height: 12px; border-radius: 6px; background: linear-gradient(90deg, #ECECF1 25%, #F6F6FA 37%, #ECECF1 63%); background-size: 400% 100%; animation: shimmer 1.4s infinite linear; }
   .embedded-skeleton .sk-line.short { width: 40%; }
   @keyframes shimmer { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
+  /* Phone-entry screen (first screen shown once affirm.checkout.open() renders
+     the mock) — mirrors Affirm's actual "enter your mobile number" screen. */
+  .afm-phone-input {
+    border: 1.5px solid #DADAE2; border-radius: 12px; padding: 15px 16px;
+    font-size: 15px; color: #8A8A95; background: #fff;
+  }
+  .afm-phone-caption { margin-top: -6px; }
+  .afm-remember { display: flex; align-items: center; gap: 10px; font-size: 14px; color: #0C0C14; }
+  .afm-checkbox { width: 20px; height: 20px; border: 1.5px solid #C4C4CE; border-radius: 5px; flex-shrink: 0; }
   .embedded-frame .affirm-mock {
     background: #fff; color: #0C0C14; font-family: 'CalibreDemo', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     display: flex; flex-direction: column;
@@ -365,20 +401,78 @@
   .afm-amount { display: flex; align-items: baseline; justify-content: space-between; padding-bottom: 6px; border-bottom: 1px solid #ECECF1; }
   .afm-amount-k { font-size: 14px; color: #5B5B66; }
   .afm-amount-v { font-size: 20px; font-weight: 700; color: #0C0C14; }
-  .afm-plan { display: flex; flex-direction: column; gap: 12px; }
-  .afm-plan-row { display: flex; align-items: flex-start; gap: 12px; border: 1.5px solid #DADAE2; border-radius: 14px; padding: 14px 16px; cursor: pointer; transition: border-color .12s; }
-  .afm-plan-row.afm-selected { border-color: #0C0C14; border-width: 2px; padding: 13px 15px; }
+  .afm-plan { display: flex; flex-direction: column; gap: 14px; }
+  .afm-plan-row {
+    display: flex; align-items: flex-start; gap: 12px; border: 1.5px solid transparent;
+    border-radius: 16px; padding: 16px 18px; cursor: pointer; background: #fff;
+    box-shadow: 0 1px 2px rgba(15,23,34,.05), 0 4px 14px rgba(15,23,34,.07);
+    transition: border-color .12s, box-shadow .12s;
+  }
+  .afm-plan-row.afm-selected { border-color: var(--affirm-navy); border-width: 2px; padding: 15px 17px; }
   .afm-radio { width: 22px; height: 22px; border-radius: 50%; border: 2px solid #C4C4CE; position: relative; flex-shrink: 0; margin-top: 2px; }
-  .afm-radio.on { border-color: #0C0C14; }
-  .afm-radio.on::after { content: ''; position: absolute; inset: 3px; border-radius: 50%; background: #0C0C14; }
-  .afm-plan-body { display: flex; flex-direction: column; gap: 4px; }
-  .afm-badge { align-self: flex-start; font-size: 11px; font-weight: 600; color: #4A4AF4; background: #ECECFF; padding: 2px 8px; border-radius: 6px; }
-  .afm-badge.alt { color: #0B7A52; background: #E5F6EE; }
-  .afm-plan-mo { font-size: 15px; color: #0C0C14; }
-  .afm-plan-mo b { font-size: 18px; font-weight: 700; }
-  .afm-plan-sub { font-size: 12.5px; color: #74747F; }
+  .afm-radio.on { border-color: var(--affirm-navy); }
+  .afm-radio.on::after { content: ''; position: absolute; inset: 3px; border-radius: 50%; background: var(--affirm-navy); }
+  .afm-plan-body { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+  .afm-badge {
+    align-self: flex-start; font-size: 11.5px; font-weight: 600; color: #3A3A45;
+    background: #ECECEF; padding: 3px 9px; border-radius: 6px;
+  }
+  .afm-badge.alt { color: #3A3A45; background: #ECECEF; }
+  .afm-plan-mo { font-size: 16px; color: #0C0C14; }
+  .afm-plan-mo b { font-size: 17px; font-weight: 700; }
+  .afm-plan-sub { font-size: 13px; color: #74747F; }
   .afm-total { display: flex; justify-content: space-between; align-items: center; font-size: 14px; }
   .afm-total-v { font-weight: 700; font-size: 16px; }
+  /* "Review and confirm" screen (final step of the pick-a-plan flow) */
+  .afm-review-back {
+    display: flex; align-items: center; gap: 10px; font-size: 22px; font-weight: 600;
+    color: #0C0C14; margin: 2px 0 0; letter-spacing: -.2px;
+  }
+  .afm-review-back svg { flex-shrink: 0; }
+  .afm-card {
+    background: #fff; border-radius: 16px; padding: 18px;
+    box-shadow: 0 1px 2px rgba(15,23,34,.05), 0 4px 14px rgba(15,23,34,.07);
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .afm-card-head { display: flex; align-items: flex-start; gap: 12px; }
+  .afm-card-icon {
+    width: 34px; height: 34px; border-radius: 50%; border: 1.5px solid #DADAE2;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: #0C0C14;
+  }
+  .afm-card-title { font-size: 16px; font-weight: 700; color: #0C0C14; }
+  .afm-card-sub { font-size: 13px; color: #74747F; margin-top: 2px; }
+  .afm-schedule { display: flex; align-items: center; gap: 8px; padding-left: 46px; }
+  .afm-sched-dot {
+    display: flex; flex-direction: column; align-items: center; gap: 6px; flex-shrink: 0;
+  }
+  .afm-sched-dot .ring {
+    width: 30px; height: 30px; border-radius: 50%; border: 2.5px solid #D4D4DC; position: relative;
+  }
+  .afm-sched-dot .ring::after {
+    content: ''; position: absolute; top: -2.5px; left: 9px; width: 8px; height: 8px;
+    border-radius: 50%; background: var(--affirm-navy); border: 2px solid #fff;
+  }
+  .afm-sched-dot.next .ring { width: 34px; height: 34px; border-color: var(--affirm-navy); border-width: 2.5px; }
+  .afm-sched-dot.next .ring::after { content: none; }
+  .afm-sched-dot span { font-size: 11.5px; color: #5B5B66; white-space: nowrap; }
+  .afm-sched-ellipsis { color: #74747F; font-weight: 700; letter-spacing: 1px; flex-shrink: 0; }
+  .afm-sched-chevron { margin-left: auto; color: #C4C4CE; flex-shrink: 0; }
+  .afm-review-row { display: flex; justify-content: space-between; align-items: baseline; font-size: 14px; color: #5B5B66; }
+  .afm-review-row b { color: #0C0C14; font-weight: 600; }
+  .afm-review-row.due-today { font-size: 15px; }
+  .afm-review-row.due-today b { font-size: 16px; font-weight: 700; }
+  .afm-review-toggle { display: flex; align-items: center; justify-content: space-between; }
+  .afm-review-toggle .lbl { display: flex; align-items: center; gap: 7px; font-size: 15px; font-weight: 600; color: #0C0C14; }
+  .afm-review-toggle .lbl svg { color: #8A8A95; }
+  .afm-switch { width: 44px; height: 26px; border-radius: 999px; background: var(--affirm-navy); position: relative; flex-shrink: 0; }
+  .afm-switch::after { content: ''; position: absolute; top: 2.5px; right: 2.5px; width: 21px; height: 21px; border-radius: 50%; background: #fff; display: flex; }
+  .afm-pay-method {
+    display: flex; align-items: center; justify-content: space-between; background: #fff;
+    border-radius: 14px; padding: 14px 16px; box-shadow: 0 1px 2px rgba(15,23,34,.05), 0 4px 14px rgba(15,23,34,.07);
+  }
+  .afm-pay-method-k { font-size: 11px; font-weight: 700; letter-spacing: .4px; color: #8A8A95; text-transform: uppercase; }
+  .afm-pay-method-v { font-size: 15px; font-weight: 600; color: #0C0C14; margin-top: 3px; }
+  .afm-pay-method svg { color: #74747F; flex-shrink: 0; }
   .afm-btn { background: #000049; color: #fff; border: 0; border-radius: 999px; padding: 15px; font-size: 16px; font-weight: 600; cursor: pointer; font-family: inherit; }
   .afm-btn:hover { background: #10104f; }
   .afm-cancel { background: transparent; border: 0; color: #5B5B66; font-size: 14px; padding: 2px; cursor: pointer; font-family: inherit; }
@@ -523,7 +617,15 @@
                     <div class="afm-prog-step"><span>Pick a plan</span></div>
                     <div class="afm-prog-step"><span>Review details</span></div>
                   </div>
-                  <div class="afm-screen" id="emb-screen-verify">
+                  <div class="afm-screen" id="emb-screen-phone">
+                    <h1 class="afm-h1">Big purchase? No problem.</h1>
+                    <p class="afm-sub">With Affirm, you can buy now and pay over time. Checking your loan eligibility <b>won't affect your credit score</b>.</p>
+                    <div class="afm-phone-input"><span>(•••) •••-3729</span></div>
+                    <p class="afm-sub afm-phone-caption">We'll send you a verification code via SMS.</p>
+                    <label class="afm-remember"><span class="afm-checkbox"></span>Remember me</label>
+                    <div class="afm-resend">New number? <a>Update your account</a></div>
+                  </div>
+                  <div class="afm-screen hidden" id="emb-screen-verify">
                     <h1 class="afm-h1">Verify it's you</h1>
                     <p class="afm-sub">Enter the code we texted to <b>(•••) •••-3729</b> to continue your purchase with Affirm.</p>
                     <div class="afm-code">
@@ -544,15 +646,15 @@
                         <div class="afm-radio on"></div>
                         <div class="afm-plan-body">
                           <span class="afm-badge">0% APR</span>
-                          <div class="afm-plan-mo"><b>$82.35</b>/payment · 4 payments</div>
-                          <div class="afm-plan-sub">Every 2 weeks · $0 interest · $0 due today</div>
+                          <div class="afm-plan-mo"><b>$82.35</b> every 2 weeks for 4 payments</div>
+                          <div class="afm-plan-sub">$0 interest · $82.35 due today</div>
                         </div>
                       </div>
                       <div class="afm-plan-row" data-plan="p3">
                         <div class="afm-radio"></div>
                         <div class="afm-plan-body">
                           <span class="afm-badge">0% APR</span>
-                          <div class="afm-plan-mo"><b>$109.79</b>/mo · 3 months</div>
+                          <div class="afm-plan-mo"><b>$109.79</b> every month for 3 months</div>
                           <div class="afm-plan-sub">$0 interest · $0 due today</div>
                         </div>
                       </div>
@@ -560,13 +662,60 @@
                         <div class="afm-radio"></div>
                         <div class="afm-plan-body">
                           <span class="afm-badge alt">Lowest monthly payment</span>
-                          <div class="afm-plan-mo"><b>$57.85</b>/mo · 6 months</div>
-                          <div class="afm-plan-sub">15% APR · $0 due today</div>
+                          <div class="afm-plan-mo"><b>$57.85</b> every month for 6 months</div>
+                          <div class="afm-plan-sub">$25.02 interest · $0 due today</div>
                         </div>
                       </div>
                     </div>
                     <div class="afm-total"><span>Total of payments</span><span class="afm-total-v">$329.38</span></div>
                     <p class="afm-fineprint"><a>Plans are subject</a> to final eligibility and approval. Illustrative terms — simulated.</p>
+                  </div>
+                  <div class="afm-screen hidden" id="emb-screen-review">
+                    <h1 class="afm-review-back">
+                      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true"><path d="M15 5l-7 7 7 7" stroke="#0C0C14" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                      Review and confirm
+                    </h1>
+                    <div class="afm-card">
+                      <div class="afm-card-head">
+                        <div class="afm-card-icon">
+                          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2.5" stroke="currentColor" stroke-width="1.6"/><path d="M3.5 9.5h17M8 3v3.5M16 3v3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+                        </div>
+                        <div>
+                          <div class="afm-card-title" id="review-plan-mo">$82.35 every 2 weeks for 4 payments</div>
+                          <div class="afm-card-sub" id="review-plan-count">4 payments</div>
+                        </div>
+                      </div>
+                      <div class="afm-schedule" id="review-schedule"></div>
+                      <p class="afm-fineprint" style="text-align:left">These due dates are close estimates.</p>
+                    </div>
+                    <div class="afm-card">
+                      <div class="afm-card-head">
+                        <div class="afm-card-icon">
+                          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true"><path d="M5 4h14v16l-3.5-2-2 2-2-2-2 2-2-2L5 20V4z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+                        </div>
+                        <div class="afm-review-row due-today" style="flex:1">
+                          <span>Due today</span>
+                          <b id="review-due-today">$0.00</b>
+                        </div>
+                      </div>
+                      <div class="afm-review-row"><span>Purchase amount</span><b id="review-purchase">$329.38</b></div>
+                      <div class="afm-review-row"><span id="review-interest-label">Interest (0% APR)</span><b id="review-interest">$0.00</b></div>
+                      <div class="afm-review-row"><span>Total of payments</span><b id="review-total">$329.38</b></div>
+                    </div>
+                    <div class="afm-review-toggle">
+                      <span class="lbl">AutoPay (optional)
+                        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.6"/><path d="M12 11v5.5M12 8v.01" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+                      </span>
+                      <div class="afm-switch"></div>
+                    </div>
+                    <div class="afm-pay-method">
+                      <div>
+                        <div class="afm-pay-method-k">Payment method · ACH</div>
+                        <div class="afm-pay-method-v">Bank account 5635</div>
+                      </div>
+                      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </div>
+                    <p class="afm-fineprint">Click <b>Pay with affirm</b> below to confirm this loan and complete your purchase.</p>
                   </div>
                   <div class="afm-sandbox">
                     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 2.75a9.25 9.25 0 100 18.5 9.25 9.25 0 000-18.5zM1.25 12C1.25 6.063 6.063 1.25 12 1.25S22.75 6.063 22.75 12 17.937 22.75 12 22.75 1.25 17.937 1.25 12zM12 10.25a.75.75 0 01.75.75v5a.75.75 0 01-1.5 0v-5a.75.75 0 01.75-.75zM12 9a1 1 0 100-2 1 1 0 000 2z" fill="#0C0C14"/></svg>
@@ -575,7 +724,7 @@
                 </div>
               </div>
               <div class="embedded-confirm hidden" id="embedded-confirm-wrap">
-                <button id="embedded-confirm-btn" class="affirm-checkout-confirmation-button" data-stage="verify">Continue</button>
+                <button id="embedded-confirm-btn" class="affirm-checkout-confirmation-button" data-stage="phone">Continue</button>
                 <div class="ec-hint">Rendered by Affirm.js into <code>#affirm-checkout-confirmation-button</code> — label updates as the shopper moves through checkout.</div>
               </div>
               <button class="afm-cancel hidden" id="embedded-cancel">Cancel and pay another way</button>
@@ -704,15 +853,15 @@
             <div class="afm-radio on"></div>
             <div class="afm-plan-body">
               <span class="afm-badge">0% APR</span>
-              <div class="afm-plan-mo"><b>$82.35</b>/payment · 4 payments</div>
-              <div class="afm-plan-sub">Every 2 weeks · $0 interest · $0 due today</div>
+              <div class="afm-plan-mo"><b>$82.35</b> every 2 weeks for 4 payments</div>
+              <div class="afm-plan-sub">$0 interest · $82.35 due today</div>
             </div>
           </div>
           <div class="afm-plan-row" data-plan="p3">
             <div class="afm-radio"></div>
             <div class="afm-plan-body">
               <span class="afm-badge">0% APR</span>
-              <div class="afm-plan-mo"><b>$109.79</b>/mo · 3 months</div>
+              <div class="afm-plan-mo"><b>$109.79</b> every month for 3 months</div>
               <div class="afm-plan-sub">$0 interest · $0 due today</div>
             </div>
           </div>
@@ -720,8 +869,8 @@
             <div class="afm-radio"></div>
             <div class="afm-plan-body">
               <span class="afm-badge alt">Lowest monthly payment</span>
-              <div class="afm-plan-mo"><b>$57.85</b>/mo · 6 months</div>
-              <div class="afm-plan-sub">15% APR · $0 due today</div>
+              <div class="afm-plan-mo"><b>$57.85</b> every month for 6 months</div>
+              <div class="afm-plan-sub">$25.02 interest · $0 due today</div>
             </div>
           </div>
         </div>
@@ -883,6 +1032,14 @@ const PLAN_6MO = (() => {                                          // 6 months @
   return Math.round(ORDER_TOTAL * r / (1 - Math.pow(1 + r, -6)));
 })();
 const LOWAS = PAY4;                                                // "As low as $X/mo" headline
+const PLAN_INTEREST_6MO = (PLAN_6MO * 6) - ORDER_TOTAL;            // total finance charge on the 6-mo plan
+// Per-plan totals/interest/due-today, used to keep the "Total of payments" row
+// and plan copy in sync whenever the shopper switches plans (modal + embedded).
+const PLAN_META = {
+  p4: { total: PAY4 * 4,       interest: 0,                dueToday: PAY4, payments: 4, cadenceDays: 14, apr: 0 },
+  p3: { total: PLAN_3MO * 3,   interest: 0,                dueToday: 0,    payments: 3, cadenceDays: 30, apr: 0 },
+  p6: { total: PLAN_6MO * 6,   interest: PLAN_INTEREST_6MO, dueToday: 0,   payments: 6, cadenceDays: 30, apr: 15 },
+};
 
 const ITINERARY      = DEMO_CONFIG.travel.itinerary;
 const TRAVEL_DEFAULT = !!DEMO_CONFIG.travel.enabled;
@@ -1168,6 +1325,14 @@ function buildSeqList() {
 
 function renderCurrentStep() {
   const s = STEPS[state.idx];
+  // Don't show "Pay with affirm" until step 2 — the toolbar's Step/Auto-play
+  // controls (not this in-page button) are what actually drive step 1;
+  // showing the CTA only once the checkout UI has visibly started avoids a
+  // redundant/clickable-looking button sitting there at idle. For Embedded
+  // Checkout, once the shopper has clicked it to confirm the loan inline,
+  // keep it hidden for the rest of the flow (showProcessing() hides it too,
+  // but subsequent step renders would otherwise re-show it via this toggle).
+  $('.cta').classList.toggle('hidden', state.idx < 1 || (state.flow === 'embedded' && state.modalConfirmed));
   if (state.idx < 0) {
     $('#cur-step-num').textContent = 'Idle';
     $('#cur-step-label').textContent = 'Pick a flow, then click "Auto-play" or "Step".';
@@ -1204,7 +1369,9 @@ function clearLog() { $('#log').innerHTML = '<div class="log-empty">API requests
 function firstLog() { const e = $('#log .log-empty'); if (e) e.remove(); }
 function logDivider(text) { firstLog(); const log = $('#log'); log.insertAdjacentHTML('beforeend', `<div class="log-divider">${escapeHtml(text)}</div>`); log.scrollTop = log.scrollHeight; }
 function docLinkHtml(doc) {
-  if (!doc) return '';
+  // Embedded checkout's activity log skips doc links (no linked text version of the PDF doc);
+  // Direct API and VCN keep them.
+  if (!doc || state.flow === 'embedded') return '';
   return `<a class="doc-link" href="${doc.url}" target="_blank" rel="noopener">📖 Affirm docs: ${escapeHtml(doc.label)}</a>`;
 }
 function logEvent(kind, title, detail = '', doc = null) {
@@ -1325,6 +1492,7 @@ async function runStep(step) {
       if (state.modalConfirmed) break;
       logEvent('user', '⏳ Awaiting shopper action in the embedded checkout', 'Click the confirmation button to continue/confirm (happy path) or "Cancel and pay another way" to take the cancel path — all without leaving this page.');
       state.awaitingUser = true;
+      setButtons();   // grey out Step/Back immediately — advance()/goTo() won't call this again until the promise below resolves
       return new Promise((resolve) => { state._modalResolver = resolve; });
 
     case 'sdk_vcn':
@@ -1358,6 +1526,7 @@ async function runStep(step) {
       showProcessing();
       if (state.modalConfirmed) break;
       state.awaitingUser = true;
+      setButtons();   // grey out Step/Back immediately — advance()/goTo() won't call this again until the promise below resolves
       return new Promise((resolve) => { state._modalResolver = resolve; });
 
     /* ---- Direct API ---- */
@@ -1458,6 +1627,7 @@ async function runStep(step) {
       $('#member-status').classList.add('hidden');
       $('#thankyou').classList.remove('hidden');
       $('#order-id').textContent = ORDER_ID;
+      $('#member-view').classList.add('order-complete');   // collapse the whole shopper view down to just the confirmation
       if (usesBackoffice()) openBackoffice();
       break;
   }
@@ -1479,6 +1649,7 @@ function closeModal() {
 }
 function showProcessing() {
   $('#member-status').classList.add('hidden');
+  $('.cta').classList.add('hidden');   // remove "Pay with affirm" — the spinner takes its spot, right under the Affirm payment option
   $('#processing').classList.remove('hidden');
 }
 // Progress-bar / plan-selection helpers, shared by the modal (#afm-progress /
@@ -1496,6 +1667,9 @@ function selectPlanRow(rootSel, row) {
     r.classList.toggle('afm-selected', on);
     r.querySelector('.afm-radio').classList.toggle('on', on);
   });
+  const meta = PLAN_META[row.dataset.plan];
+  const totalEl = $(rootSel)?.closest('.afm-screen')?.querySelector('.afm-total-v');
+  if (meta && totalEl) totalEl.textContent = money(meta.total);
 }
 function resetAffirmScreens() {
   $('#afm-screen-verify').classList.remove('hidden');
@@ -1545,30 +1719,64 @@ function closeEmbedded() {
   state.embeddedOpen = false;
   $('#embedded-wrap').classList.add('hidden');
 }
+// Screen order: phone number entry → verify (SMS code) → pick a plan. Phone +
+// verify are both part of the "Verify" progress step (matches Affirm's real
+// checkout, which bundles them); the progress bar only advances on plan.
 function resetEmbeddedScreens() {
-  $('#emb-screen-verify').classList.remove('hidden');
+  $('#emb-screen-phone').classList.remove('hidden');
+  $('#emb-screen-verify').classList.add('hidden');
   $('#emb-screen-terms').classList.add('hidden');
+  $('#emb-screen-review').classList.add('hidden');
+  $('#embedded-confirm-wrap').classList.remove('hidden');
+  $('#btn-pay').disabled = true;
   setProgress('#emb-progress', 'verify');
   const first = $('#emb-plan .afm-plan-row');
   if (first) selectPlanRow('#emb-plan', first);
-  updateEmbeddedConfirmButton('verify');
+  updateEmbeddedConfirmButton('phone');
 }
-function embeddedPlanLabel() {
-  const sel = $('#emb-plan .afm-plan-row.afm-selected .afm-plan-mo');
-  return sel ? sel.textContent.trim() : money(ORDER_TOTAL);
+// Fills in the "Review and confirm" screen with the currently-selected plan's
+// figures (purchase amount / interest / total / due-today) and an illustrative
+// payment schedule, derived from PLAN_META — same source of truth as the
+// "Choose a payment plan" screen.
+function populateEmbeddedReview() {
+  const selected = $('#emb-plan .afm-plan-row.afm-selected');
+  const plan = selected?.dataset.plan || 'p4';
+  const meta = PLAN_META[plan];
+  const moText = selected?.querySelector('.afm-plan-mo')?.textContent.trim() || '';
+
+  $('#review-plan-mo').textContent = moText;
+  $('#review-plan-count').textContent = `${meta.payments} payment${meta.payments !== 1 ? 's' : ''}`;
+  $('#review-due-today').textContent = money(meta.dueToday);
+  $('#review-purchase').textContent = money(ORDER_TOTAL);
+  $('#review-interest-label').textContent = `Interest (${meta.apr}% APR)`;
+  $('#review-interest').textContent = money(meta.interest);
+  $('#review-total').textContent = money(meta.total);
+
+  const base = new Date('2026-06-05T00:00:00Z');
+  const dates = Array.from({ length: meta.payments }, (_, i) =>
+    new Date(base.getTime() + i * meta.cadenceDays * 86400000));
+  const fmt = (d, withYear) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: withYear ? 'numeric' : undefined });
+  const shown = dates.length > 3 ? [dates[0], dates[1]] : dates.slice(0, -1);
+  let html = shown.map(d => `<div class="afm-sched-dot"><div class="ring"></div><span>${fmt(d, false)}</span></div>`).join('');
+  if (dates.length > 3) html += `<span class="afm-sched-ellipsis">···</span>`;
+  const last = dates[dates.length - 1];
+  html += `<div class="afm-sched-dot next"><div class="ring"></div><span>${fmt(last, true)}</span></div>`;
+  html += `<svg class="afm-sched-chevron" viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  $('#review-schedule').innerHTML = html;
 }
 // The confirmation button's label/state changes as the shopper moves through
-// the inline checkout, per the Embedded Checkout doc.
+// the inline checkout (phone → verify → plan → confirm), per the doc.
 function updateEmbeddedConfirmButton(stage) {
   const btn = $('#embedded-confirm-btn');
   if (!btn) return;
   btn.dataset.stage = stage;
-  btn.textContent = stage === 'verify' ? 'Continue' : `Confirm ${embeddedPlanLabel()}`;
+  btn.textContent = stage === 'plan' ? 'Choose this plan' : 'Continue';
 }
 function onEmbeddedConfirmed() {
   if (!state.embeddedOpen) return;
   closeEmbedded();
   showProcessing();
+  $('#btn-pay').disabled = true;
   state.awaitingUser = false;
   state.modalConfirmed = true;
   logEvent('user', '✅ Shopper confirmed the Affirm loan', 'Accepted Affirm\'s terms inline, without ever leaving the merchant\'s checkout page (happy path).');
@@ -1597,6 +1805,8 @@ function cancelToStart() {
   $('#backoffice').classList.add('hidden');
   $('#choose-payment').classList.remove('hidden');
   $('#btn-pay').disabled = false;
+  $('.cta').classList.remove('hidden');
+  $('#member-view').classList.remove('order-complete');
   renderCurrentStep();
   setButtons();
 }
@@ -1731,6 +1941,8 @@ function hideStorefrontStates() {
   $('#backoffice').classList.add('hidden');
   $('#choose-payment').classList.add('hidden');
   $('#btn-pay').disabled = false;
+  $('.cta').classList.remove('hidden');
+  $('#member-view').classList.remove('order-complete');
 }
 // Rewind/replay to any step: re-run steps 0..target-1 instantly (no delays, no
 // interactive modal), then run the target step live so it shows its real visual.
@@ -1828,10 +2040,11 @@ function setTravel(on) {
 /* ─────────────────────────────────────────────────────────────────
    Apply DEMO_CONFIG to the storefront (brand, cart, totals, modal, pin)
 ─────────────────────────────────────────────────────────────────── */
-function setPlanRow(plan, amount, suffix) {
+function setPlanRow(plan, amount, suffix, subText) {
   // Updates BOTH the modal's plan rows and the inline Embedded Checkout frame's,
   // since they share the same data-plan markup.
   $$(`.afm-plan-row[data-plan="${plan}"] .afm-plan-mo`).forEach(el => { el.innerHTML = `<b>${amount}</b>${suffix}`; });
+  if (subText != null) $$(`.afm-plan-row[data-plan="${plan}"] .afm-plan-sub`).forEach(el => { el.textContent = subText; });
 }
 function applyConfig() {
   const b = DEMO_CONFIG.brand, rs = document.documentElement.style;
@@ -1867,10 +2080,10 @@ function applyConfig() {
 
   // $$ (not $) below so both the modal AND the inline Embedded Checkout frame stay in sync.
   $$('.afm-amount-v').forEach(el => { el.textContent = money(ORDER_TOTAL); });
-  $$('.afm-total-v').forEach(el => { el.textContent = money(ORDER_TOTAL); });
-  setPlanRow('p4', money(PAY4), '/payment · 4 payments');
-  setPlanRow('p3', money(PLAN_3MO), '/mo · 3 months');
-  setPlanRow('p6', money(PLAN_6MO), '/mo · 6 months');
+  $$('.afm-total-v').forEach(el => { el.textContent = money(PLAN_META.p4.total); }); // p4 is selected by default
+  setPlanRow('p4', money(PAY4), ' every 2 weeks for 4 payments', `$0 interest · ${money(PAY4)} due today`);
+  setPlanRow('p3', money(PLAN_3MO), ' every month for 3 months', '$0 interest · $0 due today');
+  setPlanRow('p6', money(PLAN_6MO), ' every month for 6 months', `${money(PLAN_INTEREST_6MO)} interest · $0 due today`);
 
   $$('.afm-verify-fineprint').forEach(el => { el.textContent = `Sandbox verification — code is prefilled for this demo. No SMS is sent. Type "${SANDBOX_PIN}" for the verification pin.`; });
   $$('.afm-sandbox-t').forEach(el => { el.innerHTML = `<b>You are currently using the Affirm Developer Sandbox.</b> This checkout does not create real loans. Type "${SANDBOX_PIN}" for the verification pin.`; });
@@ -1912,7 +2125,12 @@ $('#seq-list').addEventListener('click', (e) => {
 });
 $('#btn-pay').addEventListener('click', () => {
   $('#choose-payment').classList.add('hidden');
-  if (state.idx === -1) play();
+  if (state.idx === -1) { play(); return; }
+  // Embedded Checkout: once the shopper has reviewed the loan, the merchant's
+  // own CTA is what finally confirms it (see #embedded-confirm-btn stage machine).
+  if (state.embeddedOpen && $('#embedded-confirm-btn').dataset.stage === 'review') {
+    onEmbeddedConfirmed();
+  }
 });
 $$('.pay-option input[name="paymethod"]').forEach(r =>
   r.addEventListener('change', () => selectPayMethod(r.value)));
@@ -1928,16 +2146,28 @@ $('#affirm-confirm').addEventListener('click', () => onAffirmConfirmed());
 $('#affirm-cancel').addEventListener('click', () => onAffirmCancelled());
 
 // Embedded Checkout: the confirmation button is a single control whose action/label
-// changes depending on the shopper's stage (verify → plan → confirm), per the doc.
+// changes depending on the shopper's stage (phone → verify → plan → confirm), per the doc.
 $('#embedded-confirm-btn').addEventListener('click', () => {
   const btn = $('#embedded-confirm-btn');
-  if (btn.dataset.stage !== 'plan') {
+  if (btn.dataset.stage === 'phone') {
+    $('#emb-screen-phone').classList.add('hidden');
+    $('#emb-screen-verify').classList.remove('hidden');
+    updateEmbeddedConfirmButton('verify');
+  } else if (btn.dataset.stage === 'verify') {
     $('#emb-screen-verify').classList.add('hidden');
     $('#emb-screen-terms').classList.remove('hidden');
     setProgress('#emb-progress', 'plan');
     updateEmbeddedConfirmButton('plan');
-  } else {
-    onEmbeddedConfirmed();
+  } else if (btn.dataset.stage === 'plan') {
+    $('#emb-screen-terms').classList.add('hidden');
+    $('#emb-screen-review').classList.remove('hidden');
+    setProgress('#emb-progress', 'review');
+    populateEmbeddedReview();
+    // Hand off the final confirmation to the merchant's own "Pay with affirm"
+    // CTA (matches the Embedded Checkout doc's confirm-then-pay handoff).
+    $('#embedded-confirm-wrap').classList.add('hidden');
+    $('#btn-pay').disabled = false;
+    btn.dataset.stage = 'review';
   }
 });
 $('#embedded-cancel').addEventListener('click', () => onEmbeddedCancelled());
