@@ -357,6 +357,24 @@
   .oc-item .nm { flex: 1; }
   .oc-item .pr { font-weight: 600; }
   .oc-total { display: flex; justify-content: space-between; font-weight: 700; border-top: 1px solid var(--border); padding-top: 8px; font-size: 14px; }
+
+  /* Express PDP (product detail page) */
+  #cart-view.hidden, .pdp.hidden { display: none; }
+  .pdp-media { height: 150px; border-radius: 12px; background: linear-gradient(135deg, var(--panel-2), #eef1f6); display: flex; align-items: center; justify-content: center; font-size: 72px; border: 1px solid var(--border); }
+  .pdp-cat { margin-top: 12px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
+  .pdp-name { margin: 4px 0 6px; font-size: 20px; color: var(--text); }
+  .pdp-rating { font-size: 13px; color: #E8A400; display: flex; align-items: center; gap: 6px; }
+  .pdp-rating .pdp-star-empty { color: #D4D9E2; }
+  .pdp-rating .pdp-reviews { color: var(--muted); }
+  .pdp-price { margin: 10px 0 8px; font-size: 24px; font-weight: 700; color: var(--text); }
+  .pdp-desc { font-size: 13px; color: var(--muted); line-height: 1.5; margin: 0 0 12px; }
+  .pdp-attrs { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
+  .pdp-attr { display: flex; align-items: center; gap: 8px; }
+  .pdp-attr-k { font-size: 12px; color: var(--muted); width: 40px; }
+  .pdp-swatch { font-size: 12px; padding: 4px 10px; border: 1.5px solid var(--border); border-radius: 8px; color: var(--text); }
+  .pdp-swatch.on { border-color: var(--affirm-navy); font-weight: 600; }
+  .pdp-qty { font-size: 13px; padding: 4px 12px; border: 1.5px solid var(--border); border-radius: 8px; }
+  .pdp-blurb { margin-bottom: 4px; }
   .afm-fineprint { font-size: 12px; color: #74747F; line-height: 1.45; margin: 0; text-align: center; }
   .afm-fineprint a { color: #4A4AF4; }
   .afm-sandbox { margin: auto 16px 14px; background: #F4F4F7; border-radius: 12px; padding: 12px 14px; display: flex; gap: 10px; align-items: flex-start; }
@@ -459,10 +477,27 @@
         <span>Free 2-day shipping</span><span>·</span><span>30-day returns</span>
       </div>
 
-      <div class="cart-heading">Your cart <span>(2 items)</span></div>
-      <div id="cart-items"></div>
+      <!-- PDP (Express entry surface): single product detail page -->
+      <div id="pdp-view" class="pdp hidden">
+        <div class="pdp-media" id="pdp-media">🎒</div>
+        <div class="pdp-cat" id="pdp-cat">Backpacks</div>
+        <h3 class="pdp-name" id="pdp-name">Product</h3>
+        <div class="pdp-rating">★★★★<span class="pdp-star-empty">★</span> <span class="pdp-reviews">(214 reviews)</span></div>
+        <div class="pdp-price" id="pdp-price">$0.00</div>
+        <p class="pdp-desc" id="pdp-desc"></p>
+        <div class="pdp-attrs">
+          <div class="pdp-attr"><span class="pdp-attr-k">Size</span><span class="pdp-swatch on">65L</span><span class="pdp-swatch">45L</span></div>
+          <div class="pdp-attr"><span class="pdp-attr-k">Qty</span><span class="pdp-qty">1</span></div>
+        </div>
+        <div class="pdp-blurb affirm-blurb" id="pdp-blurb"></div>
+      </div>
 
-      <div class="totals" id="totals"></div>
+      <!-- Cart (Direct API / VCN entry surface) -->
+      <div id="cart-view">
+        <div class="cart-heading">Your cart <span>(2 items)</span></div>
+        <div id="cart-items"></div>
+        <div class="totals" id="totals"></div>
+      </div>
 
       <div id="choose-payment" class="choose-payment hidden">⚠️ Checkout cancelled — please choose a payment method to continue.</div>
 
@@ -698,7 +733,9 @@ const DEMO_CONFIG = {
   // ── Cart (prices in dollars) ─────────────────────────────────────
   cart: {
     items: [
-      { name: 'Trailhead 65L Hiking Backpack', sku: 'TRH-65', qty: 1, price: 189.99, emoji: '🎒' },
+      { name: 'Trailhead 65L Hiking Backpack', sku: 'TRH-65', qty: 1, price: 189.99, emoji: '🎒',
+        category: 'Backpacks',
+        desc: 'A 65-liter internal-frame pack built for multi-day treks: ventilated back panel, adjustable torso, rain cover, and 4.2 lbs of ripstop nylon that shrugs off the trail.' },
       { name: 'Summit 800-Fill Down Jacket',   sku: 'SDJ-22', qty: 1, price: 129.99, emoji: '🧥' }
     ],
     // Order-summary adjustments. amount is in dollars; negative = a discount.
@@ -716,6 +753,7 @@ const DEMO_CONFIG = {
   ids: {
     publicApiKey:  'SJ0WQVUAV9FPV3Z5',
     orderId:       'NW-10231',          // merchant identifier (your order_id, in the checkout object)
+    cartId:        'CART-8842',          // Express: unique cart id created in Step 1, echoed to the S&T endpoint
     transactionId: 'KQ7R-4821',         // Affirm transaction / loan id (format ABCD-1234)
     checkoutToken: '7Y2C0K9QW3ZB1A5R',  // returned by onSuccess / open_vcn
     checkoutId:    'CO9KQ2VR7TX1'        // Affirm checkout_id on the Authorize response
@@ -803,6 +841,7 @@ const money    = (c) => '$' + (c / 100).toLocaleString('en-US', { minimumFractio
 
 const PUBLIC_API_KEY = DEMO_CONFIG.ids.publicApiKey;
 const ORDER_ID       = DEMO_CONFIG.ids.orderId;
+const CART_ID        = DEMO_CONFIG.ids.cartId || ('CART-' + ORDER_ID.split('-').pop());
 const TXN_ID         = DEMO_CONFIG.ids.transactionId;
 const CHECKOUT_TOKEN = DEMO_CONFIG.ids.checkoutToken;
 const SANDBOX_PIN    = DEMO_CONFIG.sandboxPin;
@@ -829,8 +868,12 @@ const ITINERARY      = DEMO_CONFIG.travel.itinerary;
 const TRAVEL_DEFAULT = !!DEMO_CONFIG.travel.enabled;
 
 /* ── Express Checkout derived values ─────────────────────────────── */
+// Express starts from a single-product PDP (not the cart), so its subtotal is that
+// one product — Affirm then adds shipping + tax from the S&T response.
+const PDP_ITEM         = ITEMS[0];
+const PDP_SUBTOTAL     = PDP_ITEM.cents * PDP_ITEM.qty;
 const EXPRESS_DEFAULT  = !!DEMO_CONFIG.express.enabled;
-const EXPRESS_SUBTOTAL = SUBTOTAL + ADJ_SUM;   // net merchandise (before shipping/tax)
+const EXPRESS_SUBTOTAL = PDP_SUBTOTAL;   // single PDP product (before shipping/tax)
 const EXPRESS_OPTIONS  = DEMO_CONFIG.express.shippingOptions.map(o => {
   const shipC = toCents(o.shipping || 0), taxC = toCents(o.tax || 0);
   return { type: o.type, label: o.label, shipC, taxC, total: EXPRESS_SUBTOTAL + shipC + taxC };
@@ -841,6 +884,7 @@ const EXPRESS_ZONE_DEFAULT = !!DEMO_CONFIG.express.unsupportedZone;
 // The reversed Shipping & Totals (S&T) call Affirm makes TO the merchant.
 const SAT_REQUEST = {
   currency: DEMO_CONFIG.cart.currency,
+  cart_id: CART_ID,
   order_id: ORDER_ID,
   shipping: {
     line1:   DEMO_CONFIG.customer.address.line1,
@@ -854,6 +898,7 @@ const SAT_REQUEST = {
 const SAT_422 = { errors: [{ error_code: 'UNSUPPORTED_SHIPPING_ZONE', message: 'We do not ship to this location.', fields: ['shipping.state'] }] };
 function satResponse() {
   return {
+    cart_id: CART_ID,
     order_id: ORDER_ID,
     currency: DEMO_CONFIG.cart.currency,
     subtotal: EXPRESS_SUBTOTAL,
@@ -928,11 +973,11 @@ function rebuildCheckouts() {
     checkout_variant: 'express',
     country_code: 'USA',
     locale: 'en_US',
+    cart_id: CART_ID,
     order_id: ORDER_ID,
     currency: DEMO_CONFIG.cart.currency,
     subtotal: EXPRESS_SUBTOTAL,
-    items: ITEMS.map(i => ({ display_name: i.name, sku: i.sku, unit_price: i.cents, qty: i.qty })),
-    discounts: buildDiscounts(),
+    items: [{ display_name: PDP_ITEM.name, sku: PDP_ITEM.sku, unit_price: PDP_ITEM.cents, qty: PDP_ITEM.qty }],
     merchant: {
       name: DEMO_CONFIG.brand.storeName,
       public_api_key: PUBLIC_API_KEY,
@@ -1080,35 +1125,40 @@ const FLOWS = {
     { actors: ['mfe','member'], kind: 'thank_you', label: 'Shopper sees the order confirmation',
       desc: 'Order placed. The Affirm loan and virtual card are finalized; capture / refund happen through the merchant\'s normal card processor.' }
   ],
-  // Express Checkout: Affirm-hosted; starts before shipping/total are known. Affirm
-  // calls the merchant Shipping & Totals endpoint, then the merchant finalizes with
-  // Read Checkout + Authorize. Builds on Direct API. US-only.
+  // Express Checkout: Affirm-hosted; starts from a PDP before shipping/total are known.
+  // Follows the reference sequence diagram: create cart → configure & open → address →
+  // S&T (Address + Cart ID) → option → loan terms → user_confirmation_url → Read Checkout
+  // → calculate total → authorize → validate → confirmation page. US-only.
   express: [
-    { actors: ['member','mfe'], kind: 'express_click', label: 'Shopper clicks the Affirm Express Checkout button',
-      desc: 'On a PDP or cart page — before the shipping address or final total are known. AFJS renders the Express button; clicking it launches Affirm\'s hosted flow.' },
-    { actors: ['mfe','affe'], kind: 'sdk_express', label: 'Frontend: affirm.checkout({ checkout_variant: "express" }) → open()',
-      desc: 'The checkout object carries items + subtotal ONLY — shipping and total are omitted (Affirm collects the address and derives them). checkout_variant:"express" + meta.is_express_checkout mark it Express; merchant_shipping_and_totals_callback_url tells Affirm where to fetch shipping & totals.' },
-    { actors: ['affe','member'], kind: 'open_modal', label: 'Affirm-hosted Express Checkout opens',
-      desc: 'Affirm renders its hosted checkout and prompts the shopper for a shipping address.' },
-    { actors: ['member','affe'], kind: 'address_entry', label: 'Shopper enters a shipping address',
-      desc: 'Affirm validates the address, then calls the merchant\'s Shipping & Totals endpoint to price shipping and tax for that destination.' },
-    { actors: ['afbe','mbe'], kind: 'shipping_totals', wait: false, label: 'Affirm → Merchant: Shipping & Totals endpoint (server-to-server)',
-      desc: 'THE call that defines Express Checkout. Affirm POSTs order_id + shipping address to the merchant\'s S&T endpoint; the merchant returns shipping options with per-option totals. Shopper-blocking: <5s SLA, idempotent, signed with X-Affirm-Signature.' },
-    { actors: ['member','affe'], kind: 'select_shipping', label: 'Shopper selects a shipping option',
-      desc: 'The shopper picks a shipping method; Affirm shows financing terms for that final total.' },
-    { actors: ['member','affe'], kind: 'modal_flow', wait: true, label: 'Shopper reviews terms & confirms the loan',
-      desc: `Happy path: the shopper confirms Affirm's terms (sandbox PIN ${SANDBOX_PIN}) and Affirm returns them to user_confirmation_url. Cancel path: the shopper is sent to user_cancel_url and no token is returned.` },
-    { actors: ['affe','mbe'], kind: 'express_confirm', label: 'Affirm → merchant: user_confirmation_url (POST) with checkout_token',
-      desc: 'On confirmation Affirm returns the shopper to user_confirmation_url with the checkout_token in the POST body (user_confirmation_url_action: "POST"). The backend uses it to finalize.' },
-    { actors: ['mbe','afbe'], kind: 'read_checkout', label: 'Backend → Affirm: Read Checkout (GET /api/v2/checkout/{token})',
-      desc: 'The backend reads the finalized checkout: shipping address, the shipping option the shopper chose, and the amounts Affirm used — including the total to validate.' },
-    { actors: ['mbe','afbe'], kind: 'express_authorize', label: 'Backend → Affirm: Authorize (POST /api/v2/charges)',
-      desc: 'The backend authorizes the loan with the checkout_token. Affirm returns the charge/transaction id and the authorized amount.' },
-    { actors: ['mbe','mbe'], kind: 'validate_amount', label: 'Validate authorized amount == S&T total',
-      desc: 'Before fulfilling, confirm the authorized amount equals the total your S&T endpoint returned for the selected option. On mismatch: do NOT fulfill — void and investigate.' },
-    { actors: ['mbe','mfe'], kind: 'create_order', label: 'Create order → show confirmation',
-      desc: 'The backend records "Affirm" as the payment method with the transaction id, creates the order, and tells the frontend to show confirmation.' },
-    { actors: ['mfe','member'], kind: 'thank_you', label: 'Shopper sees the order confirmation',
+    { actors: ['member','mfe'], kind: 'express_click', label: 'Shopper clicks the Affirm Checkout button (PDP)',
+      desc: 'On the product detail page (PDP) — before the shipping address or final total are known. The merchant page renders the Affirm Express button; clicking it starts the flow.' },
+    { actors: ['mfe','mbe'], kind: 'create_cart', label: 'Step 1 · Create a cart with a unique identifier',
+      desc: 'The merchant frontend calls its backend to create a cart for this product and gets back a unique Cart ID. This Cart ID is the identifier the Shipping & Totals endpoint later keys off.' },
+    { actors: ['mfe','affe'], kind: 'sdk_express', label: 'Step 2 · Configure checkout object → open Affirm Checkout',
+      desc: 'The merchant configures the Express checkout object (items + subtotal + Cart ID; shipping and total omitted) and calls affirm.checkout({ checkout_variant: "express" }).open(). Affirm hosts the rest.' },
+    { actors: ['affe','member'], kind: 'open_modal', label: 'Affirm screen · Shipping Address Collection',
+      desc: 'Affirm renders its hosted checkout and prompts the shopper to enter / select a shipping address.' },
+    { actors: ['member','affe'], kind: 'address_entry', label: 'Shopper selects a shipping address',
+      desc: 'The shopper provides a shipping address. Affirm FE sends the address to Affirm BE, which validates it and calls the merchant Shipping & Totals endpoint.' },
+    { actors: ['afbe','mbe'], kind: 'shipping_totals', wait: false, label: 'Step 3 · Shipping & Totals endpoint (Address + Cart ID → options + totals)',
+      desc: 'Affirm BE POSTs the shipping address + Cart ID to the merchant Shipping & Totals endpoint (server-to-server); the merchant returns shipping options with per-option order totals. Shopper-blocking: <5s SLA, idempotent, signed with X-Affirm-Signature.' },
+    { actors: ['member','affe'], kind: 'select_shipping', label: 'Affirm screen · Shipping Option Selection',
+      desc: 'The shopper selects a shipping option; Affirm returns loan terms for that final total.' },
+    { actors: ['member','affe'], kind: 'modal_flow', wait: true, label: 'Affirm screen · Loan Terms (select term & confirm)',
+      desc: `The shopper selects a loan term and confirms (sandbox PIN ${SANDBOX_PIN}); Affirm returns a checkout_token. Cancel path: the shopper is sent to user_cancel_url and no token is returned.` },
+    { actors: ['affe','mbe'], kind: 'express_confirm', label: 'Affirm → merchant: call user_confirmation_url with checkout_token',
+      desc: 'Affirm calls the merchant user_confirmation_url with the checkout_token (POST) so the backend can finalize the order.' },
+    { actors: ['mbe','afbe'], kind: 'read_checkout', label: 'Step 4 · Read Checkout with token (→ shipping address + option)',
+      desc: 'The backend reads the finalized checkout with the token; Affirm returns the shipping address and the shipping option the shopper chose.' },
+    { actors: ['mbe','mbe'], kind: 'calculate_total', label: 'Step 4 · Calculate the order total',
+      desc: 'Using the shipping address + selected option from Read Checkout, the merchant computes the authoritative order total to authorize and to validate against.' },
+    { actors: ['mbe','afbe'], kind: 'express_authorize', label: 'Authorize transaction with token + Order ID (→ authorized amount)',
+      desc: 'The backend authorizes with the checkout_token + Order ID (POST /api/v2/charges). Affirm returns the authorized loan amount.' },
+    { actors: ['mbe','mbe'], kind: 'validate_amount', label: 'Validate order total == authorized amount (alt)',
+      desc: 'alt: if the merchant order total equals the authorized amount → redirect to Order Success. If it does NOT match → redirect to Order Failure (do not fulfill; void & investigate).' },
+    { actors: ['mbe','mfe'], kind: 'create_order', label: 'Redirect to Order Success (create order)',
+      desc: 'On a valid match the backend records "Affirm" as the payment method with the transaction id, creates the order, and redirects the shopper to the order confirmation page.' },
+    { actors: ['mfe','member'], kind: 'thank_you', label: 'Merchant Order Confirmation Page',
       desc: 'Order placed and authorized. Use the back-office card to Capture (on fulfillment), Void (auth only), or Refund the Affirm transaction.' }
   ]
 };
@@ -1425,19 +1475,34 @@ async function runStep(step) {
 
     /* ---- Express Checkout ---- */
     case 'express_click':
-      logEvent('user', '👆 Shopper clicked the Affirm Express Checkout button',
-        `Entry surface: ${DEMO_CONFIG.express.entrySurface.toUpperCase()} · the shipping address & final total are NOT known yet.`, DOCS.express);
+      logEvent('user', '👆 Shopper clicked the Affirm Checkout button on the PDP',
+        `Entry surface: ${DEMO_CONFIG.express.entrySurface.toUpperCase()} · product: ${PDP_ITEM.name} · the shipping address & final total are NOT known yet.`, DOCS.express);
       $('#btn-pay').disabled = true;
       $('#member-status').classList.remove('hidden');
       $('#member-status-val').textContent = 'Launching Affirm Express Checkout…';
       break;
 
+    case 'create_cart': {
+      logDivider('POST · Merchant create-cart  (Step 1 · frontend → backend)');
+      const t0 = performance.now();
+      if (!state.replaying) await sleep(240 + Math.random()*160);
+      logApi({
+        method: 'POST', endpoint: 'https://northwind.example.com/api/cart',
+        payload: { items: [{ sku: PDP_ITEM.sku, qty: PDP_ITEM.qty, unit_price: PDP_ITEM.cents }], currency: DEMO_CONFIG.cart.currency },
+        response: { cart_id: CART_ID, subtotal: EXPRESS_SUBTOTAL, currency: DEMO_CONFIG.cart.currency, status: 'open' },
+        status: 201, durationMs: state.replaying ? 260 : Math.round(performance.now()-t0),
+        note: 'Step 1 of Express: the merchant creates a cart for this product and returns a unique Cart ID. This identifier goes into the Express checkout object and is echoed back to your Shipping & Totals endpoint, so you can look the cart up when Affirm calls you.'
+      });
+      logEvent('merchant', '🛒 Cart created with a unique identifier', `cart_id: ${CART_ID} · ${PDP_ITEM.name} · subtotal ${money(EXPRESS_SUBTOTAL)}`);
+      break;
+    }
+
     case 'sdk_express':
-      logDivider('Affirm.js · affirm.checkout({ checkout_variant: "express" }) → open()');
+      logDivider('Affirm.js · Step 2 · configure checkout object → affirm.checkout({ checkout_variant: "express" }).open()');
       logApi({
         method: 'POST', endpoint: 'affirm.checkout({ checkout_variant: "express" }) → open()',
         payload: EXPRESS_CHECKOUT, status: 200, durationMs: 9,
-        note: 'Express checkout object: items + subtotal ONLY — shipping and total are omitted (Affirm collects the address and derives them). meta.is_express_checkout:true + checkout_variant:"express" mark it Express; merchant_shipping_and_totals_callback_url is where Affirm fetches shipping & totals. Under the hood AFJS POSTs this to /api/checkout-bff/v1/create-checkout. US-only: country_code USA, locale en_US, USD.' + (state.travel ? ' Travel merchant: the itinerary object is included and is REQUIRED.' : ''),
+        note: 'Step 2 of Express: the merchant configures the checkout object with the single PDP product + subtotal + the Cart ID from Step 1 — shipping and total are omitted (Affirm collects the address and derives them). meta.is_express_checkout:true + checkout_variant:"express" mark it Express; merchant_shipping_and_totals_callback_url is where Affirm fetches shipping & totals. Under the hood AFJS POSTs this to /api/checkout-bff/v1/create-checkout. US-only: country_code USA, locale en_US, USD.' + (state.travel ? ' Travel merchant: the itinerary object is included and is REQUIRED.' : ''),
         doc: DOCS.expressSetup
       });
       logTravelMandatory();
@@ -1472,7 +1537,7 @@ async function runStep(step) {
         method: 'POST', endpoint: DEMO_CONFIG.express.sAndTUrl,
         payload: SAT_REQUEST, response: satResponse(), status: 200,
         durationMs: state.replaying ? 300 : Math.round(performance.now()-t0),
-        note: 'THE call that defines Express Checkout. Affirm POSTs (server-to-server) with order_id + shipping address; the merchant returns shipping options with per-option totals (amounts in cents). Shopper-blocking: respond in <5s (target sub-second), be idempotent, and reply 200/422 directly (no 3xx). Verify X-Affirm-Signature (HMAC-SHA512 over "<timestamp>.<raw_body>" with your private key).',
+        note: 'Step 3 — THE call that defines Express Checkout. Affirm POSTs (server-to-server) the shipping address + the Cart ID from Step 1; the merchant looks up the cart and returns shipping options with per-option totals (amounts in cents). Shopper-blocking: respond in <5s (target sub-second), be idempotent, and reply 200/422 directly (no 3xx). Verify X-Affirm-Signature (HMAC-SHA512 over "<timestamp>.<raw_body>" with your private key).',
         doc: DOCS.express
       });
       setExpressShipStage('options');
@@ -1506,9 +1571,19 @@ async function runStep(step) {
       logApi({
         method: 'GET', endpoint: `https://api.global.sandbox.affirm.com/api/v2/checkout/${CHECKOUT_TOKEN}`,
         response: readCheckoutResponse(), status: 200, durationMs: state.replaying ? 320 : Math.round(performance.now()-t0),
-        note: 'Server-to-server (public + private key Basic auth). Retrieves the finalized order Affirm built: shipping address, the shipping option the shopper chose, and the amounts Affirm used — including the total to validate against your S&T response.',
+        note: 'Step 4 — Read Checkout: server-to-server (public + private key Basic auth). Retrieves the finalized order Affirm built: shipping address, the shipping option the shopper chose, and the amounts Affirm used — including the total to validate against your S&T response.',
         doc: DOCS.expressSetup
       });
+      logEvent('affirm', '◀ Affirm returned the finalized checkout', `shipping address + selected option (${EXPRESS_OPTIONS[state.expressSel].label})`);
+      break;
+    }
+
+    case 'calculate_total': {
+      const o = EXPRESS_OPTIONS[state.expressSel];
+      if (!state.replaying) await sleep(200 + Math.random()*140);
+      logEvent('merchant', '🧮 Merchant calculated the order total',
+        `subtotal ${money(EXPRESS_SUBTOTAL)} + shipping ${money(o.shipC)} + tax ${money(o.taxC)} = ${money(o.total)} — computed from the Read Checkout address + selected option. This is the total to authorize and to validate against.`);
+      $('#member-status-val').textContent = 'Order total calculated · authorizing…';
       break;
     }
 
@@ -1530,9 +1605,9 @@ async function runStep(step) {
 
     case 'validate_amount': {
       const o = EXPRESS_OPTIONS[state.expressSel];
-      logEvent('merchant', '✅ Amount validated before fulfillment',
-        `Authorized ${money(o.total)} == S&T total for "${o.label}" (${money(o.total)}). Match — safe to create the order. (Mismatch → do NOT fulfill: void & investigate.)`);
-      $('#member-status-val').textContent = 'Total validated · creating order…';
+      logEvent('merchant', '✅ Order total == authorized amount → Order Success',
+        `Calculated order total ${money(o.total)} == authorized amount ${money(o.total)}. Match → redirect to Order Success. (If they did NOT match → redirect to Order Failure: do not fulfill, void & investigate.)`);
+      $('#member-status-val').textContent = 'Total validated · redirecting to confirmation…';
       break;
     }
 
@@ -1897,6 +1972,9 @@ function syncFlowUI() {
   $('#express-chip').classList.toggle('hidden', !exp);
   $('#btn-addbag').classList.toggle('hidden', !exp);
   $('#btn-pay').textContent = exp ? 'Buy with affirm' : 'Pay with affirm';
+  // Express enters from a PDP; Direct / VCN enter from the cart.
+  $('#pdp-view').classList.toggle('hidden', !exp);
+  $('#cart-view').classList.toggle('hidden', exp);
 }
 function setFlow(flow) {
   if (flow === state.flow) return;
@@ -1968,7 +2046,7 @@ function renderOrderComplete() {
   $('#oc-ship').innerHTML = `${escapeHtml(nm.first + ' ' + nm.last)}<br>${escapeHtml(a.line1)}${a.line2 ? ', ' + escapeHtml(a.line2) : ''}<br>${escapeHtml(a.city)}, ${escapeHtml(a.state)} ${escapeHtml(a.zipcode)}`;
   $('#oc-contact').textContent = DEMO_CONFIG.customer.email;
   $('#oc-pay').innerHTML = `<span class="affirm-name">affirm</span> · 4 interest-free payments of <b>${money(planAmounts(o.total).pay4)}</b>`;
-  $('#oc-items').innerHTML = ITEMS.map(i => `<div class="oc-item"><span class="thumb">${i.emoji || '📦'}</span><span class="nm">${escapeHtml(i.name)} · Qty ${i.qty}</span><span class="pr">${money(i.cents * i.qty)}</span></div>`).join('')
+  $('#oc-items').innerHTML = `<div class="oc-item"><span class="thumb">${PDP_ITEM.emoji || '📦'}</span><span class="nm">${escapeHtml(PDP_ITEM.name)} · Qty ${PDP_ITEM.qty}</span><span class="pr">${money(PDP_ITEM.cents * PDP_ITEM.qty)}</span></div>`
     + `<div class="oc-item"><span class="thumb">🚚</span><span class="nm">${escapeHtml(o.label)}</span><span class="pr">${o.shipC ? money(o.shipC) : 'Free'}</span></div>`;
   $('#oc-total').textContent = money(o.total);
   $('#oc-order-id').textContent = ORDER_ID;
@@ -2006,6 +2084,14 @@ function applyConfig() {
   $('#totals').innerHTML = rows.join('');
 
   applyPlanDisplay(ORDER_TOTAL);
+
+  // PDP (Express entry surface) — a single-product detail page.
+  $('#pdp-media').textContent = PDP_ITEM.emoji || '📦';
+  $('#pdp-cat').textContent = PDP_ITEM.category || 'Featured';
+  $('#pdp-name').textContent = PDP_ITEM.name;
+  $('#pdp-price').textContent = money(PDP_ITEM.cents);
+  $('#pdp-desc').textContent = PDP_ITEM.desc || `${PDP_ITEM.name} · SKU ${PDP_ITEM.sku}.`;
+  $('#pdp-blurb').innerHTML = `As low as <b>${money(Math.round(EXPRESS_SUBTOTAL / 4))}/mo</b> with <span class="affirm-name">Affirm</span>`;
 
   $('#cfg-express-options').innerHTML = EXPRESS_OPTIONS.map((o, i) => `
     <label class="config-opt">
