@@ -76,6 +76,16 @@
   .flow-toggle button.on { background: var(--affirm-navy); color: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.18); }
   .flow-toggle .pin { font-size: 10px; opacity: .7; margin-left: 5px; }
 
+  /* Connected-accounts toggle — only shown when Embedded Checkout is selected. */
+  .connected-toggle {
+    display: inline-flex; align-items: center; gap: 7px;
+    border: 1px solid var(--border); border-radius: 999px; padding: 6px 12px 6px 10px;
+    background: var(--panel-2); font-size: 12px; font-weight: 700; color: var(--muted);
+    letter-spacing: .2px; cursor: pointer; user-select: none;
+  }
+  .connected-toggle input { width: 14px; height: 14px; accent-color: var(--affirm-navy); cursor: pointer; }
+  .connected-toggle:has(input:checked) { background: #EEF0FF; border-color: #C7CCFB; color: var(--affirm-navy); }
+
   /* ───── layout ───── */
   main {
     display: grid;
@@ -519,6 +529,10 @@
       <button data-flow="vcn">Virtual Card (VCN)</button>
       <button data-flow="embedded">Embedded Checkout</button>
     </div>
+    <label class="connected-toggle hidden" id="connected-toggle" title="Simulate a shopper whose Affirm account is already connected + opted-in on this merchant, skipping sign-in and OTP verification">
+      <input type="checkbox" id="cfg-connected">
+      <span>Connected account</span>
+    </label>
     <button id="btn-back" disabled title="Go back one step">⏮ Back</button>
     <button id="btn-step" disabled title="Advance one step">⏭ Step</button>
     <button id="btn-play" class="btn-primary">▶ Auto-play</button>
@@ -1232,8 +1246,15 @@ const FLOWS = {
       desc: 'The merchant adds two elements to its payment section: #affirm-embedded-checkout (where AFJS will render the checkout iframe) and #affirm-checkout-confirmation-button (a merchant-page-native confirmation control). Both start empty.' },
     { actors: ['mfe','affe'], kind: 'sdk_checkout_embedded', label: 'Frontend: affirm.checkout(obj) → affirm.checkout.open({ onSuccess, onFail })',
       desc: 'The SAME call used by Direct API. Because the two containers already exist in the DOM, Affirm.js renders the checkout inline into them instead of opening a modal or redirecting.' },
-    { actors: ['member','affe'], kind: 'inline_flow', wait: true, label: 'Shopper verifies & confirms the loan, inline',
-      desc: `Happy path: the shopper verifies (sandbox PIN ${SANDBOX_PIN}), picks a plan, and clicks the confirmation button — all without leaving the page — and onSuccess fires. Cancel path: clicking cancel fires onFail and the shopper picks another payment method.` },
+    { actors: ['member','affe'], kind: 'inline_flow', wait: true,
+      // Label/desc are functions (not plain strings) because they depend on the
+      // Connected Accounts toggle, which can change without switching flows.
+      label: () => state.connectedAccounts
+        ? 'Shopper picks a plan & confirms the loan, inline'
+        : 'Shopper verifies & confirms the loan, inline',
+      desc: () => state.connectedAccounts
+        ? 'Connected accounts: the shopper already has a valid, connected Affirm session, so phone/PIN verification is skipped entirely — checkout opens directly on plan selection. Happy path: the shopper picks a plan and clicks the confirmation button — all without leaving the page — and onSuccess fires. Cancel path: clicking cancel fires onFail and the shopper picks another payment method.'
+        : `Happy path: the shopper verifies (sandbox PIN ${SANDBOX_PIN}), picks a plan, and clicks the confirmation button — all without leaving the page — and onSuccess fires. Cancel path: clicking cancel fires onFail and the shopper picks another payment method.` },
     { actors: ['affe','mfe'], kind: 'checkout_success', label: 'Affirm.js onSuccess(checkout_response) → checkout_token',
       desc: 'On confirm, Affirm.js invokes the onSuccess callback in the browser with checkout_response.checkout_token — identical to Direct API. (On cancel/decline, onFail is called with an error instead.)' },
     { actors: ['mbe','afbe'], kind: 'authorize', label: 'Backend → Affirm: Authorize (POST /transactions)',
@@ -1282,6 +1303,9 @@ const state = {
   flow: 'direct',
   vcnMode: VCN_MODE_DEFAULT,
   travel: TRAVEL_DEFAULT,
+  // Embedded Checkout only: simulates a shopper whose Affirm account is already
+  // connected + opted-in on this merchant, so sign-in/OTP verification is skipped.
+  connectedAccounts: false,
   idx: -1,
   playing: false,
   awaitingUser: false,
@@ -1305,6 +1329,10 @@ const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 /* ─────────────────────────────────────────────────────────────────
    Sequence rendering
 ─────────────────────────────────────────────────────────────────── */
+// Step label/desc are usually plain strings, but a step can use a function
+// instead when its text depends on demo state (e.g. the Connected Accounts
+// toggle) rather than just which flow/step is active.
+function stepText(v) { return typeof v === 'function' ? v() : v; }
 function buildSeqList() {
   $('#seq-list').innerHTML = STEPS.map((s, i) => {
     const [from, to] = s.actors;
@@ -1317,7 +1345,7 @@ function buildSeqList() {
             <span class="arrow">━━▶</span>
             <span class="actor ${to}">${ACTOR_NAMES[to]}</span>
           </div>
-          <div class="label">${escapeHtml(s.label)}</div>
+          <div class="label">${escapeHtml(stepText(s.label))}</div>
         </div>
       </div>`;
   }).join('');
@@ -1349,8 +1377,8 @@ function renderCurrentStep() {
       : 'Order placed. Switch to the Direct API flow or hit Reset to run it again.';
   } else {
     $('#cur-step-num').textContent = `Step ${state.idx + 1} / ${STEPS.length}`;
-    $('#cur-step-label').textContent = s.label;
-    $('#cur-step-desc').textContent = s.desc;
+    $('#cur-step-label').textContent = stepText(s.label);
+    $('#cur-step-desc').textContent = stepText(s.desc);
   }
   $$('#seq-list .seq-step').forEach((el, i) => {
     el.classList.toggle('active', i === state.idx);
@@ -1482,6 +1510,10 @@ async function runStep(step) {
         note: 'The SAME open() call used by Direct API. Because #affirm-embedded-checkout and #affirm-checkout-confirmation-button already exist in the DOM, Affirm.js renders the checkout inline into them instead of opening a modal or redirecting. Re-calling open() whenever the checkout amount changes reloads #affirm-embedded-checkout.',
         doc: DOCS.embedded
       });
+      if (state.connectedAccounts) {
+        logEvent('affirm', '🔗 Connected accounts — sign-in & verification skipped',
+          `The shopper's Affirm account is already connected, and they've opted in on ${DEMO_CONFIG.brand.storeName}, so Affirm.js recognizes the session and renders straight to loan terms instead of prompting for phone/PIN verification.`);
+      }
       if (!(state.replaying && state.idx < state.replayTarget)) openEmbedded();
       break;
 
@@ -1722,17 +1754,32 @@ function closeEmbedded() {
 // Screen order: phone number entry → verify (SMS code) → pick a plan. Phone +
 // verify are both part of the "Verify" progress step (matches Affirm's real
 // checkout, which bundles them); the progress bar only advances on plan.
+// Connected Accounts toggle: when on, the shopper already has a valid,
+// connected + opted-in Affirm session, so phone/verify are skipped entirely
+// and checkout opens directly on plan selection (the "Verify" progress step
+// just shows as already done).
 function resetEmbeddedScreens() {
-  $('#emb-screen-phone').classList.remove('hidden');
+  const connected = state.connectedAccounts;
+  $('#emb-screen-phone').classList.toggle('hidden', connected);
   $('#emb-screen-verify').classList.add('hidden');
-  $('#emb-screen-terms').classList.add('hidden');
+  $('#emb-screen-terms').classList.toggle('hidden', !connected);
   $('#emb-screen-review').classList.add('hidden');
   $('#embedded-confirm-wrap').classList.remove('hidden');
   $('#btn-pay').disabled = true;
-  setProgress('#emb-progress', 'verify');
+  const verifyStepLabel = $('#emb-progress .afm-prog-step:first-child span');
+  if (verifyStepLabel) verifyStepLabel.textContent = connected ? 'Verified' : 'Verify';
+  setProgress('#emb-progress', connected ? 'plan' : 'verify');
   const first = $('#emb-plan .afm-plan-row');
   if (first) selectPlanRow('#emb-plan', first);
-  updateEmbeddedConfirmButton('phone');
+  updateEmbeddedConfirmButton(connected ? 'plan' : 'phone');
+  // The embedded frame's sandbox note drops the PIN mention when verification
+  // is skipped; the modal (Direct API/VCN) always keeps it (set in applyConfig()).
+  const embSandbox = $('#embedded-mock .afm-sandbox-t');
+  if (embSandbox) {
+    embSandbox.innerHTML = connected
+      ? '<b>You are currently using the Affirm Developer Sandbox.</b> This checkout does not create real loans.'
+      : `<b>You are currently using the Affirm Developer Sandbox.</b> This checkout does not create real loans. Type "${SANDBOX_PIN}" for the verification pin.`;
+  }
 }
 // Fills in the "Review and confirm" screen with the currently-selected plan's
 // figures (purchase amount / interest / total / due-today) and an illustrative
@@ -2006,6 +2053,9 @@ function syncFlowUI() {
   $$('#flow-toggle button').forEach(b => b.classList.toggle('on', b.dataset.flow === state.flow));
   $$('#config-pop input[name="vcnmode"]').forEach(r => { r.checked = r.value === state.vcnMode; });
   $('#cfg-travel').checked = state.travel;
+  // Connected Accounts only makes sense for Embedded Checkout.
+  $('#connected-toggle').classList.toggle('hidden', state.flow !== 'embedded');
+  $('#cfg-connected').checked = state.connectedAccounts;
   $('#int-note').innerHTML = intNoteHtml();
   // The payment-method radio picker + two-column layout is specific to the
   // Embedded Checkout flow; Direct API / VCN keep the original single-column
@@ -2033,6 +2083,14 @@ function setTravel(on) {
   if (on === state.travel) return;
   state.travel = on;
   rebuildCheckouts();   // add / remove the itinerary object from the checkout payloads
+  syncFlowUI();
+  reset();
+}
+function setConnectedAccounts(on) {
+  on = !!on;
+  if (on === state.connectedAccounts) return;
+  state.connectedAccounts = on;
+  buildSeqList();   // the inline_flow step's label/desc depend on this toggle
   syncFlowUI();
   reset();
 }
@@ -2113,6 +2171,7 @@ $('#config-pop').addEventListener('click', (e) => e.stopPropagation());
 $$('#config-pop input[name="vcnmode"]').forEach(r =>
   r.addEventListener('change', () => setVcnMode(r.value)));
 $('#cfg-travel').addEventListener('change', (e) => setTravel(e.target.checked));
+$('#cfg-connected').addEventListener('change', (e) => setConnectedAccounts(e.target.checked));
 document.addEventListener('click', () => closeConfig());
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeConfig(); });
 $('#btn-play').addEventListener('click', () => state.playing ? pause() : play());
