@@ -346,6 +346,7 @@
   .oc-head { background: linear-gradient(135deg, #E8F4EC, #F4FAF6); padding: 18px; text-align: center; }
   .oc-head .check { width: 44px; height: 44px; border-radius: 50%; background: var(--success); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 26px; margin-bottom: 6px; }
   .oc-head h3 { margin: 0 0 2px; color: #0C5B36; }
+  .oc-head .oc-order-no { font-size: 12px; font-weight: 700; color: #0C5B36; margin: 2px 0 4px; }
   .oc-head .sub { font-size: 12px; color: #3d7a5c; }
   .oc-body { background: #fff; padding: 14px 16px; display: flex; flex-direction: column; gap: 14px; }
   .oc-sec .k { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin-bottom: 4px; }
@@ -360,6 +361,9 @@
 
   /* Express PDP (product detail page) */
   #cart-view.hidden, .pdp.hidden { display: none; }
+  #seq-off { display: none; color: var(--muted); font-size: 13px; line-height: 1.5; padding: 6px 2px; }
+  #seq-panel.seq-hidden .seq-current, #seq-panel.seq-hidden .seq-list { display: none; }
+  #seq-panel.seq-hidden #seq-off { display: block; }
   .pdp-media { height: 150px; border-radius: 12px; background: linear-gradient(135deg, var(--panel-2), #eef1f6); display: flex; align-items: center; justify-content: center; font-size: 72px; border: 1px solid var(--border); }
   .pdp-cat { margin-top: 12px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
   .pdp-name { margin: 4px 0 6px; font-size: 20px; color: var(--text); }
@@ -453,6 +457,14 @@
     </label>
   </div>
   <div class="config-group" style="border-top:1px solid var(--border)">
+    <div class="config-label">Express Checkout on the product page</div>
+    <p class="config-sub">Offer Affirm directly on the <b>Direct API</b> product page. Applies to the <b>Direct API</b> flow.</p>
+    <label class="config-opt">
+      <input type="checkbox" id="cfg-express-enabled" checked>
+      <span><b>Express Checkout enabled</b> — the product page runs the full <b>Express Checkout</b> experience (<b>Buy With Affirm</b> + the Affirm-hosted flow, sequence &amp; backend activity). Turn off to hide it and leave only <b>Add to Bag</b> (the shopper checks out from the cart via Direct API).</span>
+    </label>
+  </div>
+  <div class="config-group" style="border-top:1px solid var(--border)">
     <div class="config-label">Express Checkout</div>
     <p class="config-sub">Affirm-hosted; the merchant's Shipping &amp; Totals endpoint returns these options. Applies to the <b>Express Checkout</b> flow. <a href="https://docs.affirm.com/developers/docs/express-checkout" target="_blank" rel="noopener">Express docs ↗</a></p>
     <div id="cfg-express-options"></div>
@@ -503,7 +515,7 @@
 
       <div class="cta">
         <div class="express-chip hidden" id="express-chip">⚡ Express Checkout · Affirm pre-fills your details</div>
-        <button id="btn-addbag" class="btn-ghost hidden" style="margin-bottom:8px">Add to bag</button>
+        <button id="btn-addbag" class="btn-ghost hidden" style="margin-bottom:8px">Add to Bag</button>
         <button id="btn-pay" class="btn-affirm">Pay with affirm</button>
         <div class="int-note" id="int-note">Integration: <b>Direct API</b> — <code>affirm.checkout()</code> → confirm → server-side <code>authorize</code></div>
       </div>
@@ -530,6 +542,7 @@
         <div class="oc-head">
           <div class="check">✓</div>
           <h3>Your order is placed!</h3>
+          <div class="oc-order-no">Order # <span id="oc-order-id">—</span></div>
           <div class="sub">We'll email you a confirmation and another email when your order ships.</div>
         </div>
         <div class="oc-body">
@@ -541,7 +554,6 @@
             <div class="oc-items" id="oc-items"></div>
             <div class="oc-total"><span>Total</span><span id="oc-total">—</span></div>
           </div>
-          <div class="oc-sec"><div class="v" style="font-size:11px;color:var(--muted)">Order # <span id="oc-order-id">—</span> · Financed by Affirm</div></div>
         </div>
       </div>
 
@@ -564,7 +576,7 @@
   </section>
 
   <!-- ─── MIDDLE: sequence ─── -->
-  <section class="panel">
+  <section class="panel" id="seq-panel">
     <h2><span class="dot" style="background: var(--affirm-accent)"></span>Sequence of operations</h2>
     <div class="seq-current">
       <div class="step-num" id="cur-step-num">Idle</div>
@@ -573,6 +585,7 @@
     </div>
     <div class="body">
       <div class="seq-list" id="seq-list"></div>
+      <div class="seq-off" id="seq-off">Express Checkout is turned off, so there's no Affirm sequence on the product page. The shopper taps <b>Add to Bag</b> and checks out from the cart (Direct API).</div>
     </div>
   </section>
 
@@ -1142,8 +1155,8 @@ const FLOWS = {
       desc: 'The shopper provides a shipping address. Affirm FE sends the address to Affirm BE, which validates it and calls the merchant Shipping & Totals endpoint.' },
     { actors: ['afbe','mbe'], kind: 'shipping_totals', wait: false, label: 'Step 3 · Shipping & Totals endpoint (Address + Cart ID → options + totals)',
       desc: 'Affirm BE POSTs the shipping address + Cart ID to the merchant Shipping & Totals endpoint (server-to-server); the merchant returns shipping options with per-option order totals. Shopper-blocking: <5s SLA, idempotent, signed with X-Affirm-Signature.' },
-    { actors: ['member','affe'], kind: 'select_shipping', label: 'Affirm screen · Shipping Option Selection',
-      desc: 'The shopper selects a shipping option; Affirm returns loan terms for that final total.' },
+    { actors: ['member','affe'], kind: 'select_shipping', wait: true, label: 'Affirm screen · Shipping Option Selection',
+      desc: 'The shopper selects a shipping option and clicks Save; Affirm returns loan terms for that final total.' },
     { actors: ['member','affe'], kind: 'modal_flow', wait: true, label: 'Affirm screen · Loan Terms (select term & confirm)',
       desc: `The shopper selects a loan term and confirms (sandbox PIN ${SANDBOX_PIN}); Affirm returns a checkout_token. Cancel path: the shopper is sent to user_cancel_url and no token is returned.` },
     { actors: ['affe','mbe'], kind: 'express_confirm', label: 'Affirm → merchant: call user_confirmation_url with checkout_token',
@@ -1187,8 +1200,15 @@ const ACTOR_NAMES = {
 let STEPS = FLOWS.direct;
 
 // Resolve the active step list for the current flow + VCN mode.
+// The runtime experience is "Express" whenever the shopper is on a product page
+// with Express Checkout enabled — that's the Express Checkout tab, OR the Direct API
+// tab while on its product page (before Add to Bag) with the Express setting on.
+function isExpressExperience() {
+  return state.flow === 'express'
+    || (state.flow === 'direct' && state.directStage === 'pdp' && state.expressEnabled);
+}
 function stepsForFlow() {
-  if (state.flow === 'express') return FLOWS.express;
+  if (isExpressExperience()) return FLOWS.express;
   if (state.flow === 'vcn') return state.vcnMode === 'server' ? FLOWS.vcnServer : FLOWS.vcnClient;
   return FLOWS.direct;
 }
@@ -1198,6 +1218,8 @@ const state = {
   travel: TRAVEL_DEFAULT,
   expressSel: EXPRESS_SEL_DEFAULT,
   expressZone: EXPRESS_ZONE_DEFAULT,
+  expressEnabled: true,   // Express Checkout offered on the Direct API product page (settings toggle)
+  directStage: 'pdp',     // Direct API storefront surface: 'pdp' (product page) → 'cart' (checkout) after Add to Bag
   idx: -1,
   playing: false,
   awaitingUser: false,
@@ -1211,7 +1233,8 @@ const state = {
   refunded: false,
   speedMs: 1400,
   timer: null,
-  _modalResolver: null
+  _modalResolver: null,
+  _shipResolver: null
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -1244,8 +1267,8 @@ function renderCurrentStep() {
     $('#cur-step-num').textContent = 'Idle';
     $('#cur-step-label').textContent = 'Pick a flow, then click "Auto-play" or "Step".';
     $('#cur-step-desc').textContent =
+      isExpressExperience() ? 'Express Checkout: Affirm-hosted; starts before shipping/total are known. Affirm calls your Shipping & Totals endpoint for options, then you Read Checkout + Authorize. Builds on Direct API; US-only.' :
       state.flow === 'direct'  ? 'Direct API: Affirm authorizes a loan, the merchant authorizes/captures the charge via Affirm\'s Transaction API.' :
-      state.flow === 'express' ? 'Express Checkout: Affirm-hosted; starts before shipping/total are known. Affirm calls your Shipping & Totals endpoint for options, then you Read Checkout + Authorize. Builds on Direct API; US-only.' :
       'VCN: Affirm issues a one-time virtual card the merchant runs through its existing card processor.';
   } else if (state.idx >= STEPS.length) {
     $('#cur-step-num').textContent = 'Complete';
@@ -1370,7 +1393,7 @@ async function runStep(step) {
     case 'open_modal':
       if (state.replaying && state.idx < state.replayTarget) break;
       openModal(modalUrl());
-      $('#member-status-val').textContent = state.flow === 'express'
+      $('#member-status-val').textContent = isExpressExperience()
         ? 'Affirm Express Checkout open · shopper entering address.'
         : 'Affirm checkout open · waiting for the shopper to confirm.';
       logEvent('user', '⏳ Awaiting shopper action in the Affirm modal', 'Click "Choose this plan" to confirm (happy path) or "Cancel" to take the cancel path.');
@@ -1549,7 +1572,14 @@ async function runStep(step) {
       setExpressShipStage('selected');
       logEvent('user', '🚚 Shopper selected a shipping option',
         `${o.label} · shipping ${money(o.shipC)} · tax ${money(o.taxC)} → total ${money(o.total)}. Affirm now shows financing terms for this total.`);
-      break;
+      // Interactive gate: pause here until the shopper clicks "Save" on the
+      // Affirm-hosted shipping-options screen (afm-shipping-save advances to the
+      // Loan Terms step). Skip the wait while rewinding to a later step.
+      if (state.replaying && state.idx < state.replayTarget) break;
+      $('#member-status-val').textContent = 'Affirm Express Checkout open · shopper choosing a shipping option.';
+      logEvent('user', '⏳ Awaiting shopper action in the Affirm modal', 'Click "Save" to lock in the shipping option and see financing terms.');
+      state.awaitingUser = true;
+      return new Promise((resolve) => { state._shipResolver = resolve; });
     }
 
     case 'express_confirm':
@@ -1620,14 +1650,14 @@ async function runStep(step) {
       logEvent('system', '🎉 Order placed', 'Shopper sees the confirmation screen.');
       $('#processing').classList.add('hidden');
       $('#member-status').classList.add('hidden');
-      if (state.flow === 'express') {
+      if (isExpressExperience()) {
         renderOrderComplete();
         $('#thankyou-express').classList.remove('hidden');
       } else {
         $('#thankyou').classList.remove('hidden');
         $('#order-id').textContent = ORDER_ID;
       }
-      if (state.flow === 'direct' || state.flow === 'express') openBackoffice();
+      if (state.flow !== 'vcn') openBackoffice();
       break;
   }
 }
@@ -1636,7 +1666,7 @@ async function runStep(step) {
    Modal helpers
 ─────────────────────────────────────────────────────────────────── */
 function modalUrl() {
-  if (state.flow === 'express') return 'https://sandbox.affirm.com/u/express/' + ORDER_ID;
+  if (isExpressExperience()) return 'https://sandbox.affirm.com/u/express/' + ORDER_ID;
   return (state.flow === 'vcn' && state.vcnMode === 'client')
     ? 'https://sandbox.affirm.com/u/vcn/' + CHECKOUT_TOKEN
     : 'https://sandbox.affirm.com/u/checkout/' + AUTH_RESPONSE.checkout_id;
@@ -1734,7 +1764,7 @@ function resetSlide() {
   s.classList.remove('done');
 }
 function resetAffirmScreens() {
-  const exp = state.flow === 'express';
+  const exp = isExpressExperience();
   $('#afm-screen-verify').classList.toggle('hidden', exp);
   $('#afm-screen-shipping').classList.toggle('hidden', !exp);
   $('#afm-screen-terms').classList.add('hidden');
@@ -1766,8 +1796,9 @@ function onAffirmCancelled() {
   state.cancelling = true;
   closeModal();
   if (state._modalResolver) { state._modalResolver(); state._modalResolver = null; }
+  if (state._shipResolver) { state._shipResolver(); state._shipResolver = null; }
   logEvent('affirm', '✖ Affirm checkout cancelled',
-    state.flow === 'express'
+    isExpressExperience()
       ? 'Shopper cancelled or abandoned the Affirm-hosted Express flow. Affirm sends them to user_cancel_url; no checkout_token is returned and no charge is created.'
     : state.flow === 'direct'
       ? 'Shopper closed Affirm without confirming. Affirm.js calls onFail(error); no checkout_token is returned and no transaction is created.'
@@ -1915,6 +1946,7 @@ async function goTo(targetIdx) {
   state.awaitingUser = false;
   state.cancelling = false;
   state._modalResolver = null;
+  state._shipResolver = null;
   closeModal();
   clearLog();
   hideStorefrontStates();
@@ -1937,6 +1969,7 @@ function reset() {
   state.replaying = false;
   state.modalConfirmed = false;
   state.cancelling = false;
+  state._shipResolver = null;
   clearLog();
   hideStorefrontStates();
   $('#choose-payment').classList.add('hidden');
@@ -1953,10 +1986,10 @@ function setButtons() {
 }
 
 function intNoteHtml() {
+  if (isExpressExperience())
+    return 'Integration: <b>Express Checkout</b> — <code>affirm.checkout({checkout_variant:"express"})</code> → Affirm calls your <b>Shipping &amp; Totals</b> endpoint → Read Checkout → <code>authorize</code>';
   if (state.flow === 'direct')
     return 'Integration: <b>Direct API</b> — <code>affirm.checkout()</code> → confirm → server-side <code>authorize</code>';
-  if (state.flow === 'express')
-    return 'Integration: <b>Express Checkout</b> — <code>affirm.checkout({checkout_variant:"express"})</code> → Affirm calls your <b>Shipping &amp; Totals</b> endpoint → Read Checkout → <code>authorize</code>';
   return state.vcnMode === 'server'
     ? 'Integration: <b>Virtual Card (VCN)</b> — <code>affirm.checkout.open()</code> → <code>onSuccess(token)</code> → backend <code>POST /checkout/{token}/vcn</code> → charge via your PSP'
     : 'Integration: <b>Virtual Card (VCN)</b> — <code>affirm.checkout.open_vcn()</code> → card in the browser <code>success()</code> callback → charge via your PSP';
@@ -1967,29 +2000,75 @@ function syncFlowUI() {
   $('#cfg-travel').checked = state.travel;
   $$('#cfg-express-options input[name="expsel"]').forEach(r => { r.checked = Number(r.value) === state.expressSel; });
   const ez = $('#cfg-express-zone'); if (ez) ez.checked = state.expressZone;
+  const ee = $('#cfg-express-enabled'); if (ee) ee.checked = state.expressEnabled;
   $('#int-note').innerHTML = intNoteHtml();
-  const exp = state.flow === 'express';
-  $('#express-chip').classList.toggle('hidden', !exp);
-  $('#btn-addbag').classList.toggle('hidden', !exp);
-  $('#btn-pay').textContent = exp ? 'Buy with affirm' : 'Pay with affirm';
-  // Express enters from a PDP; Direct / VCN enter from the cart.
-  $('#pdp-view').classList.toggle('hidden', !exp);
-  $('#cart-view').classList.toggle('hidden', exp);
+  applyStorefrontSurface();
+}
+// Decide which storefront surface + buttons + sequence to show for the active flow.
+// - Express: always a PDP with Add to Bag + Buy With Affirm.
+// - Direct API: a PDP (Add to Bag + Pay with affirm) that switches to the cart
+//   ("checkout page") once Add to Bag is clicked. The Express Checkout setting
+//   (on by default) governs whether Pay with affirm + the full sequence appear.
+// - VCN: the cart, with Pay with affirm.
+function applyStorefrontSurface() {
+  const flow = state.flow;
+  const expUX = isExpressExperience();
+  const directPdp = flow === 'direct' && state.directStage === 'pdp';
+  const showPdp = flow === 'express' || directPdp;
+
+  $('#pdp-view').classList.toggle('hidden', !showPdp);
+  $('#cart-view').classList.toggle('hidden', showPdp);
+  $('#express-chip').classList.toggle('hidden', !expUX);
+  $('#btn-pay').textContent = expUX ? 'Buy With Affirm' : 'Pay with affirm';
+
+  let showAddBag = false, showPay = true, hideSeq = false;
+  if (flow === 'express') {
+    showAddBag = true;
+  } else if (flow === 'direct' && directPdp) {
+    showAddBag = true;
+    showPay = state.expressEnabled;      // Express off → hide the Affirm buy button
+    hideSeq  = !state.expressEnabled;    // Express off → remove the full sequence
+  }
+  $('#btn-addbag').classList.toggle('hidden', !showAddBag);
+  $('#btn-pay').classList.toggle('hidden', !showPay);
+  $('#int-note').classList.toggle('hidden', hideSeq);
+  $('#seq-panel').classList.toggle('seq-hidden', hideSeq);
+}
+// Recompute the active sequence (which depends on flow + directStage + expressEnabled)
+// and rebuild the sequence list to match.
+function applyFlowSteps() {
+  STEPS = stepsForFlow();
+  buildSeqList();
 }
 function setFlow(flow) {
   if (flow === state.flow) return;
   state.flow = flow;
-  STEPS = stepsForFlow();
+  state.directStage = 'pdp';   // always (re)enter Direct API from the product page
+  applyFlowSteps();
   syncFlowUI();
-  buildSeqList();
+  reset();
+}
+function setExpressEnabled(on) {
+  on = !!on;
+  if (on === state.expressEnabled) return;
+  state.expressEnabled = on;
+  if (state.flow === 'direct') state.directStage = 'pdp';
+  applyFlowSteps();
+  syncFlowUI();
+  reset();
+}
+// Full reset from the top toolbar: return the Direct API storefront to the PDP.
+function resetAll() {
+  if (state.flow === 'direct') state.directStage = 'pdp';
+  applyFlowSteps();
+  syncFlowUI();
   reset();
 }
 function setVcnMode(mode) {
   if (mode === state.vcnMode) return;
   state.vcnMode = mode;
-  if (state.flow === 'vcn') STEPS = stepsForFlow();
+  applyFlowSteps();
   syncFlowUI();
-  buildSeqList();
   reset();
 }
 function setTravel(on) {
@@ -2005,14 +2084,14 @@ function setExpressSel(i) {
   if (i === state.expressSel) return;
   state.expressSel = i;
   syncFlowUI();
-  if (state.flow === 'express') reset();
+  if (isExpressExperience()) reset();
 }
 function setExpressZone(on) {
   on = !!on;
   if (on === state.expressZone) return;
   state.expressZone = on;
   syncFlowUI();
-  if (state.flow === 'express') reset();
+  if (isExpressExperience()) reset();
 }
 
 /* ─────────────────────────────────────────────────────────────────
@@ -2045,7 +2124,7 @@ function renderOrderComplete() {
   const nm = DEMO_CONFIG.customer.name, a = DEMO_CONFIG.customer.address;
   $('#oc-ship').innerHTML = `${escapeHtml(nm.first + ' ' + nm.last)}<br>${escapeHtml(a.line1)}${a.line2 ? ', ' + escapeHtml(a.line2) : ''}<br>${escapeHtml(a.city)}, ${escapeHtml(a.state)} ${escapeHtml(a.zipcode)}`;
   $('#oc-contact').textContent = DEMO_CONFIG.customer.email;
-  $('#oc-pay').innerHTML = `<span class="affirm-name">affirm</span> · 4 interest-free payments of <b>${money(planAmounts(o.total).pay4)}</b>`;
+  $('#oc-pay').innerHTML = `<span class="affirm-name">affirm</span>`;
   $('#oc-items').innerHTML = `<div class="oc-item"><span class="thumb">${PDP_ITEM.emoji || '📦'}</span><span class="nm">${escapeHtml(PDP_ITEM.name)} · Qty ${PDP_ITEM.qty}</span><span class="pr">${money(PDP_ITEM.cents * PDP_ITEM.qty)}</span></div>`
     + `<div class="oc-item"><span class="thumb">🚚</span><span class="nm">${escapeHtml(o.label)}</span><span class="pr">${o.shipC ? money(o.shipC) : 'Free'}</span></div>`;
   $('#oc-total').textContent = money(o.total);
@@ -2112,8 +2191,8 @@ $('#storefront-panel').appendChild($('#modal-overlay'));
 
 applyConfig();
 rebuildCheckouts();   // apply DEMO_CONFIG.travel.enabled default
+applyFlowSteps();     // pick the right sequence for the initial experience (Direct API PDP → Express)
 syncFlowUI();
-buildSeqList();
 renderCurrentStep();
 setButtons();
 
@@ -2121,6 +2200,11 @@ $('#flow-toggle').addEventListener('click', (e) => {
   const btn = e.target.closest('button[data-flow]');
   if (btn) setFlow(btn.dataset.flow);
 });
+// Optional deep-link: ?flow=express|vcn|direct or #express
+(function () {
+  const q = (new URLSearchParams(location.search).get('flow') || location.hash.replace('#', '')).toLowerCase();
+  if (q === 'express' || q === 'vcn' || q === 'direct') setFlow(q);
+})();
 function openConfig()  { syncFlowUI(); $('#config-pop').classList.remove('hidden'); }
 function closeConfig() { $('#config-pop').classList.add('hidden'); }
 function toggleConfig(){ $('#config-pop').classList.contains('hidden') ? openConfig() : closeConfig(); }
@@ -2130,6 +2214,7 @@ $('#config-pop').addEventListener('click', (e) => e.stopPropagation());
 $$('#config-pop input[name="vcnmode"]').forEach(r =>
   r.addEventListener('change', () => setVcnMode(r.value)));
 $('#cfg-travel').addEventListener('change', (e) => setTravel(e.target.checked));
+$('#cfg-express-enabled').addEventListener('change', (e) => setExpressEnabled(e.target.checked));
 $('#cfg-express-options').addEventListener('change', (e) => {
   const r = e.target.closest('input[name="expsel"]');
   if (r) setExpressSel(Number(r.value));
@@ -2140,7 +2225,7 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeConfi
 $('#btn-play').addEventListener('click', () => state.playing ? pause() : play());
 $('#btn-step').addEventListener('click', step);
 $('#btn-back').addEventListener('click', back);
-$('#btn-reset').addEventListener('click', reset);
+$('#btn-reset').addEventListener('click', resetAll);
 $('#seq-list').addEventListener('click', (e) => {
   const el = e.target.closest('.seq-step');
   if (el && !state.playing && !state.awaitingUser) goTo(Number(el.dataset.idx));
@@ -2161,6 +2246,15 @@ $('#afm-shipping-save').addEventListener('click', () => {
   $('#afm-screen-shipping').classList.add('hidden');
   $('#afm-screen-terms').classList.remove('hidden');
   setAfmProgress('plan');
+  // Sequence: resolve the select_shipping wait (step 7) → advance to Loan Terms (step 8).
+  if (state.awaitingUser && state._shipResolver) {
+    const o = EXPRESS_OPTIONS[state.expressSel];
+    logEvent('user', '💾 Shopper saved the shipping option', `${o.label} · total ${money(o.total)}. Affirm now shows the payment plan for this total.`);
+    state.awaitingUser = false;
+    const resolve = state._shipResolver; state._shipResolver = null;
+    resolve();
+    if (!state.playing) setTimeout(() => advance(), 0);
+  }
 });
 $('#afm-ship-opts').addEventListener('click', (e) => {
   const el = e.target.closest('.afm-ship-opt');
@@ -2200,7 +2294,17 @@ $('#affirm-cancel').addEventListener('click', () => onAffirmCancelled());
     thumb.style.left = maxLeft + 'px'; slide.classList.add('done'); onAffirmConfirmed();
   });
 })();
-$('#btn-addbag').addEventListener('click', (e) => e.preventDefault());
+$('#btn-addbag').addEventListener('click', (e) => {
+  e.preventDefault();
+  // Direct API: Add to Bag takes the shopper to the checkout page (cart view),
+  // which runs the classic Direct API experience.
+  if (state.flow === 'direct' && state.directStage === 'pdp') {
+    state.directStage = 'cart';
+    applyFlowSteps();
+    syncFlowUI();
+    reset();
+  }
+});
 $('#bo-capture').addEventListener('click', boCapture);
 $('#bo-void').addEventListener('click', boVoid);
 $('#bo-refund').addEventListener('click', () => boRefund(ORDER_TOTAL, false));
