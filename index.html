@@ -514,7 +514,6 @@
       <div id="choose-payment" class="choose-payment hidden">⚠️ Checkout cancelled — please choose a payment method to continue.</div>
 
       <div class="cta">
-        <div class="express-chip hidden" id="express-chip">⚡ Express Checkout · Affirm pre-fills your details</div>
         <button id="btn-addbag" class="btn-ghost hidden" style="margin-bottom:8px">Add to Bag</button>
         <button id="btn-pay" class="btn-affirm">Pay with affirm</button>
         <div class="int-note" id="int-note">Integration: <b>Direct API</b> — <code>affirm.checkout()</code> → confirm → server-side <code>authorize</code></div>
@@ -1205,7 +1204,7 @@ let STEPS = FLOWS.direct;
 // tab while on its product page (before Add to Bag) with the Express setting on.
 function isExpressExperience() {
   return state.flow === 'express'
-    || (state.flow === 'direct' && state.directStage === 'pdp' && state.expressEnabled);
+    || (state.flow === 'direct' && state.pdpStage === 'pdp' && state.expressEnabled);
 }
 function stepsForFlow() {
   if (isExpressExperience()) return FLOWS.express;
@@ -1219,7 +1218,7 @@ const state = {
   expressSel: EXPRESS_SEL_DEFAULT,
   expressZone: EXPRESS_ZONE_DEFAULT,
   expressEnabled: true,   // Express Checkout offered on the Direct API product page (settings toggle)
-  directStage: 'pdp',     // Direct API storefront surface: 'pdp' (product page) → 'cart' (checkout) after Add to Bag
+  pdpStage: 'pdp',        // Direct API / VCN storefront surface: 'pdp' (product page) → 'cart' (checkout) after Add to Bag
   idx: -1,
   playing: false,
   awaitingUser: false,
@@ -1296,7 +1295,19 @@ function renderCurrentStep() {
 ─────────────────────────────────────────────────────────────────── */
 function clearLog() { $('#log').innerHTML = '<div class="log-empty">API requests and backend events will appear here as the flow runs.</div>'; }
 function firstLog() { const e = $('#log .log-empty'); if (e) e.remove(); }
-function logDivider(text) { firstLog(); const log = $('#log'); log.insertAdjacentHTML('beforeend', `<div class="log-divider">${escapeHtml(text)}</div>`); log.scrollTop = log.scrollHeight; }
+function logDivider(text) { firstLog(); const log = $('#log'); log.insertAdjacentHTML('beforeend', `<div class="log-divider" data-step="${state.idx}">${escapeHtml(text)}</div>`); log.scrollTop = log.scrollHeight; }
+// Scroll the backend log so the first entry belonging to a given step aligns to the top.
+// The scroll container is the panel .body (overflow-y:auto), not #log itself.
+function scrollLogToStep(idx) {
+  const log = $('#log');
+  if (!log) return;
+  const scroller = log.closest('.body') || log;
+  const node = log.querySelector(`[data-step="${idx}"]`);
+  const top = node
+    ? scroller.scrollTop + (node.getBoundingClientRect().top - scroller.getBoundingClientRect().top)
+    : scroller.scrollHeight;
+  scroller.scrollTo({ top, behavior: 'smooth' });
+}
 function docLinkHtml(doc) {
   if (!doc) return '';
   return `<a class="doc-link" href="${doc.url}" target="_blank" rel="noopener">📖 Affirm docs: ${escapeHtml(doc.label)}</a>`;
@@ -1304,7 +1315,7 @@ function docLinkHtml(doc) {
 function logEvent(kind, title, detail = '', doc = null) {
   firstLog(); const log = $('#log');
   log.insertAdjacentHTML('beforeend', `
-    <div class="log-event ${kind}">
+    <div class="log-event ${kind}" data-step="${state.idx}">
       <div class="ev-title">${escapeHtml(title)}</div>
       ${detail ? `<div class="ev-detail">${escapeHtml(detail)}</div>` : ''}
       ${docLinkHtml(doc)}
@@ -1322,7 +1333,7 @@ function logApi({ method, endpoint, payload, response, status, durationMs, note,
   firstLog(); const log = $('#log');
   const okClass = status >= 200 && status < 300 ? 'ok' : 'err';
   log.insertAdjacentHTML('beforeend', `
-    <div class="log-entry">
+    <div class="log-entry" data-step="${state.idx}">
       <div class="head">
         <span class="method ${method}">${method}</span>
         <span class="endpoint">${escapeHtml(endpoint)}</span>
@@ -1957,8 +1968,25 @@ async function goTo(targetIdx) {
   state.idx = -1;
   for (let i = 0; i < targetIdx; i++) { state.idx = i; await runStep(STEPS[i]); }
   state.replaying = false;
-  if (targetIdx >= 0) { state.idx = targetIdx; await runStep(STEPS[targetIdx]); }
-  if (state.cancelling) { state.cancelling = false; return; }
+  if (targetIdx >= 0) {
+    state.idx = targetIdx;
+    const step = STEPS[targetIdx];
+    const run = runStep(step);
+    // Interactive steps log their entries, then wait for the shopper — render + scroll
+    // now instead of blocking the whole goTo on that user action.
+    if (step && step.wait) {
+      renderCurrentStep();
+      setButtons();
+      requestAnimationFrame(() => scrollLogToStep(targetIdx));
+      return;
+    }
+    await run;
+    if (state.cancelling) { state.cancelling = false; return; }
+    renderCurrentStep();
+    setButtons();
+    requestAnimationFrame(() => scrollLogToStep(targetIdx));
+    return;
+  }
   renderCurrentStep();
   setButtons();
 }
@@ -2013,28 +2041,37 @@ function syncFlowUI() {
 function applyStorefrontSurface() {
   const flow = state.flow;
   const expUX = isExpressExperience();
-  const directPdp = flow === 'direct' && state.directStage === 'pdp';
-  const showPdp = flow === 'express' || directPdp;
+  const onPdp = (flow === 'direct' || flow === 'vcn') && state.pdpStage === 'pdp';
+  const showPdp = flow === 'express' || onPdp;
 
   $('#pdp-view').classList.toggle('hidden', !showPdp);
   $('#cart-view').classList.toggle('hidden', showPdp);
-  $('#express-chip').classList.toggle('hidden', !expUX);
   $('#btn-pay').textContent = expUX ? 'Buy With Affirm' : 'Pay with affirm';
 
   let showAddBag = false, showPay = true, hideSeq = false;
   if (flow === 'express') {
     showAddBag = true;
-  } else if (flow === 'direct' && directPdp) {
+  } else if (flow === 'direct' && onPdp) {
     showAddBag = true;
     showPay = state.expressEnabled;      // Express off → hide the Affirm buy button
     hideSeq  = !state.expressEnabled;    // Express off → remove the full sequence
+  } else if (flow === 'vcn' && onPdp) {
+    // VCN product page: Express Checkout is not offered — only Add to Bag.
+    showAddBag = true;
+    showPay = false;
+    hideSeq = true;
+  }
+  if (hideSeq) {
+    $('#seq-off').innerHTML = flow === 'vcn'
+      ? 'The Virtual Card (VCN) product page doesn\'t offer Express Checkout. The shopper taps <b>Add to Bag</b> and checks out from the cart (VCN).'
+      : 'Express Checkout is turned off, so there\'s no Affirm sequence on the product page. The shopper taps <b>Add to Bag</b> and checks out from the cart (Direct API).';
   }
   $('#btn-addbag').classList.toggle('hidden', !showAddBag);
   $('#btn-pay').classList.toggle('hidden', !showPay);
   $('#int-note').classList.toggle('hidden', hideSeq);
   $('#seq-panel').classList.toggle('seq-hidden', hideSeq);
 }
-// Recompute the active sequence (which depends on flow + directStage + expressEnabled)
+// Recompute the active sequence (which depends on flow + pdpStage + expressEnabled)
 // and rebuild the sequence list to match.
 function applyFlowSteps() {
   STEPS = stepsForFlow();
@@ -2043,7 +2080,7 @@ function applyFlowSteps() {
 function setFlow(flow) {
   if (flow === state.flow) return;
   state.flow = flow;
-  state.directStage = 'pdp';   // always (re)enter Direct API from the product page
+  state.pdpStage = 'pdp';      // always (re)enter Direct API / VCN from the product page
   applyFlowSteps();
   syncFlowUI();
   reset();
@@ -2052,14 +2089,14 @@ function setExpressEnabled(on) {
   on = !!on;
   if (on === state.expressEnabled) return;
   state.expressEnabled = on;
-  if (state.flow === 'direct') state.directStage = 'pdp';
+  if (state.flow === 'direct') state.pdpStage = 'pdp';
   applyFlowSteps();
   syncFlowUI();
   reset();
 }
-// Full reset from the top toolbar: return the Direct API storefront to the PDP.
+// Full reset from the top toolbar: return the Direct API / VCN storefront to the PDP.
 function resetAll() {
-  if (state.flow === 'direct') state.directStage = 'pdp';
+  if (state.flow === 'direct' || state.flow === 'vcn') state.pdpStage = 'pdp';
   applyFlowSteps();
   syncFlowUI();
   reset();
@@ -2296,10 +2333,10 @@ $('#affirm-cancel').addEventListener('click', () => onAffirmCancelled());
 })();
 $('#btn-addbag').addEventListener('click', (e) => {
   e.preventDefault();
-  // Direct API: Add to Bag takes the shopper to the checkout page (cart view),
-  // which runs the classic Direct API experience.
-  if (state.flow === 'direct' && state.directStage === 'pdp') {
-    state.directStage = 'cart';
+  // Direct API / VCN: Add to Bag takes the shopper to the checkout page (cart view),
+  // which runs the classic Direct API / VCN experience.
+  if ((state.flow === 'direct' || state.flow === 'vcn') && state.pdpStage === 'pdp') {
+    state.pdpStage = 'cart';
     applyFlowSteps();
     syncFlowUI();
     reset();
