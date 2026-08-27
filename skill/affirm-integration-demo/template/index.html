@@ -1692,9 +1692,9 @@ function renderShipOpts() {
 function setExpressShipStage(stage) {
   const save = $('#afm-shipping-save'), sub = $('#afm-ship-sub');
   if (stage === 'entry') {
-    $('#afm-ship-addr').innerHTML = '<span class="afm-ship-typing">Waiting for the shopper to enter an address<span class="afm-cursor">&nbsp;</span></span>';
-    $('#afm-ship-opts').innerHTML = '<div class="afm-ship-hint">Shipping options appear once the address is validated.</div>';
-    if (sub) sub.textContent = 'Enter your shipping address to continue.';
+    renderShipAddr();   // prefilled saved address (shopper can edit)
+    $('#afm-ship-opts').innerHTML = '<div class="afm-ship-hint">Shipping options appear once the address is confirmed.</div>';
+    if (sub) sub.textContent = 'Your saved address is pre-filled — confirm it to see shipping options.';
     if (save) save.disabled = true;
   } else if (stage === 'filled') {
     renderShipAddr();
