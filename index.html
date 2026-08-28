@@ -190,8 +190,8 @@
 
   .cta { margin-top: 16px; }
   .cta button { width: 100%; padding: 12px; font-size: 14px; }
-  .cta .int-note { margin-top: 8px; font-size: 11px; color: var(--muted); text-align: center; line-height: 1.4; }
-  .cta .int-note b { color: var(--affirm-accent); }
+  .int-note { margin-top: 8px; font-size: 11px; color: var(--muted); text-align: center; line-height: 1.4; }
+  .int-note b { color: var(--affirm-accent); }
   /* Demo configuration popover */
   .config-pop { position: fixed; top: 56px; right: 16px; width: 330px; z-index: 1200;
     background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
@@ -244,6 +244,7 @@
   #member-view.order-complete #choose-payment,
   #member-view.order-complete #embedded-wrap,
   #member-view.order-complete .cta,
+  #member-view.order-complete .int-note,
   #member-view.order-complete #member-status,
   #member-view.order-complete #processing { display: none !important; }
 
@@ -292,15 +293,6 @@
   .embedded-skeleton .sk-line { height: 12px; border-radius: 6px; background: linear-gradient(90deg, #ECECF1 25%, #F6F6FA 37%, #ECECF1 63%); background-size: 400% 100%; animation: shimmer 1.4s infinite linear; }
   .embedded-skeleton .sk-line.short { width: 40%; }
   @keyframes shimmer { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
-  /* Phone-entry screen (first screen shown once affirm.checkout.open() renders
-     the mock) — mirrors Affirm's actual "enter your mobile number" screen. */
-  .afm-phone-input {
-    border: 1.5px solid #DADAE2; border-radius: 12px; padding: 15px 16px;
-    font-size: 15px; color: #8A8A95; background: #fff;
-  }
-  .afm-phone-caption { margin-top: -6px; }
-  .afm-remember { display: flex; align-items: center; gap: 10px; font-size: 14px; color: #0C0C14; }
-  .afm-checkbox { width: 20px; height: 20px; border: 1.5px solid #C4C4CE; border-radius: 5px; flex-shrink: 0; }
   .embedded-frame .affirm-mock {
     background: #fff; color: #0C0C14; font-family: 'CalibreDemo', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     display: flex; flex-direction: column;
@@ -631,15 +623,7 @@
                     <div class="afm-prog-step"><span>Pick a plan</span></div>
                     <div class="afm-prog-step"><span>Review details</span></div>
                   </div>
-                  <div class="afm-screen" id="emb-screen-phone">
-                    <h1 class="afm-h1">Big purchase? No problem.</h1>
-                    <p class="afm-sub">With Affirm, you can buy now and pay over time. Checking your loan eligibility <b>won't affect your credit score</b>.</p>
-                    <div class="afm-phone-input"><span>(•••) •••-3729</span></div>
-                    <p class="afm-sub afm-phone-caption">We'll send you a verification code via SMS.</p>
-                    <label class="afm-remember"><span class="afm-checkbox"></span>Remember me</label>
-                    <div class="afm-resend">New number? <a>Update your account</a></div>
-                  </div>
-                  <div class="afm-screen hidden" id="emb-screen-verify">
+                  <div class="afm-screen" id="emb-screen-verify">
                     <h1 class="afm-h1">Verify it's you</h1>
                     <p class="afm-sub">Enter the code we texted to <b>(•••) •••-3729</b> to continue your purchase with Affirm.</p>
                     <div class="afm-code">
@@ -738,7 +722,7 @@
                 </div>
               </div>
               <div class="embedded-confirm hidden" id="embedded-confirm-wrap">
-                <button id="embedded-confirm-btn" class="affirm-checkout-confirmation-button" data-stage="phone">Continue</button>
+                <button id="embedded-confirm-btn" class="affirm-checkout-confirmation-button" data-stage="verify">Continue</button>
                 <div class="ec-hint">Rendered by Affirm.js into <code>#affirm-checkout-confirmation-button</code> — label updates as the shopper moves through checkout.</div>
               </div>
               <button class="afm-cancel hidden" id="embedded-cancel">Cancel and pay another way</button>
@@ -746,7 +730,6 @@
 
             <div class="cta">
               <button id="btn-pay" class="btn-affirm">Pay with affirm</button>
-              <div class="int-note" id="int-note">Integration: <b>Direct API</b> — <code>affirm.checkout()</code> → confirm → server-side <code>authorize</code></div>
             </div>
 
             <div id="member-status" class="member-state hidden">
@@ -782,6 +765,11 @@
               </div>
             </div>
           </div>
+
+          <!-- Kept outside #pay-panel-affirm so it's visible as soon as Embedded
+               Checkout is selected — it describes the integration, not the payment
+               method choice or the CTA, so it shouldn't wait on either. -->
+          <div class="int-note" id="int-note">Integration: <b>Direct API</b> — <code>affirm.checkout()</code> → confirm → server-side <code>authorize</code></div>
         </div>
 
         <div class="cart-col">
@@ -1253,7 +1241,7 @@ const FLOWS = {
         ? 'Shopper picks a plan & confirms the loan, inline'
         : 'Shopper verifies & confirms the loan, inline',
       desc: () => state.connectedAccounts
-        ? 'Connected accounts: the shopper already has a valid, connected Affirm session, so phone/PIN verification is skipped entirely — checkout opens directly on plan selection. Happy path: the shopper picks a plan and clicks the confirmation button — all without leaving the page — and onSuccess fires. Cancel path: clicking cancel fires onFail and the shopper picks another payment method.'
+        ? 'Connected accounts: the shopper already has a valid, connected Affirm session, so PIN verification is skipped entirely — checkout opens directly on plan selection. Happy path: the shopper picks a plan and clicks the confirmation button — all without leaving the page — and onSuccess fires. Cancel path: clicking cancel fires onFail and the shopper picks another payment method.'
         : `Happy path: the shopper verifies (sandbox PIN ${SANDBOX_PIN}), picks a plan, and clicks the confirmation button — all without leaving the page — and onSuccess fires. Cancel path: clicking cancel fires onFail and the shopper picks another payment method.` },
     { actors: ['affe','mfe'], kind: 'checkout_success', label: 'Affirm.js onSuccess(checkout_response) → checkout_token',
       desc: 'On confirm, Affirm.js invokes the onSuccess callback in the browser with checkout_response.checkout_token — identical to Direct API. (On cancel/decline, onFail is called with an error instead.)' },
@@ -1353,14 +1341,13 @@ function buildSeqList() {
 
 function renderCurrentStep() {
   const s = STEPS[state.idx];
-  // Don't show "Pay with affirm" until step 2 — the toolbar's Step/Auto-play
-  // controls (not this in-page button) are what actually drive step 1;
-  // showing the CTA only once the checkout UI has visibly started avoids a
-  // redundant/clickable-looking button sitting there at idle. For Embedded
-  // Checkout, once the shopper has clicked it to confirm the loan inline,
-  // keep it hidden for the rest of the flow (showProcessing() hides it too,
-  // but subsequent step renders would otherwise re-show it via this toggle).
-  $('.cta').classList.toggle('hidden', state.idx < 1 || (state.flow === 'embedded' && state.modalConfirmed));
+  // Embedded Checkout only: don't show "Pay with affirm" until step 2 (the
+  // in-page checkout UI needs to have visibly started first), and keep it
+  // hidden for the rest of the flow once the shopper has confirmed the loan
+  // inline (showProcessing() hides it too, but subsequent step renders would
+  // otherwise re-show it via this toggle). Direct API / VCN always show the
+  // CTA — it's how the shopper (and this demo) actually starts those flows.
+  $('.cta').classList.toggle('hidden', state.flow === 'embedded' && (state.idx < 1 || state.modalConfirmed));
   if (state.idx < 0) {
     $('#cur-step-num').textContent = 'Idle';
     $('#cur-step-label').textContent = 'Pick a flow, then click "Auto-play" or "Step".';
@@ -1512,7 +1499,7 @@ async function runStep(step) {
       });
       if (state.connectedAccounts) {
         logEvent('affirm', '🔗 Connected accounts — sign-in & verification skipped',
-          `The shopper's Affirm account is already connected, and they've opted in on ${DEMO_CONFIG.brand.storeName}, so Affirm.js recognizes the session and renders straight to loan terms instead of prompting for phone/PIN verification.`);
+          `The shopper's Affirm account is already connected, and they've opted in on ${DEMO_CONFIG.brand.storeName}, so Affirm.js recognizes the session and renders straight to loan terms instead of prompting for PIN verification.`);
       }
       if (!(state.replaying && state.idx < state.replayTarget)) openEmbedded();
       break;
@@ -1659,7 +1646,10 @@ async function runStep(step) {
       $('#member-status').classList.add('hidden');
       $('#thankyou').classList.remove('hidden');
       $('#order-id').textContent = ORDER_ID;
-      $('#member-view').classList.add('order-complete');   // collapse the whole shopper view down to just the confirmation
+      // Embedded Checkout only: collapse the whole shopper view down to just
+      // the confirmation. Direct API / VCN keep their original layout (cart,
+      // nav, etc. stay visible alongside the confirmation), as in master.
+      if (state.flow === 'embedded') $('#member-view').classList.add('order-complete');
       if (usesBackoffice()) openBackoffice();
       break;
   }
@@ -1681,7 +1671,10 @@ function closeModal() {
 }
 function showProcessing() {
   $('#member-status').classList.add('hidden');
-  $('.cta').classList.add('hidden');   // remove "Pay with affirm" — the spinner takes its spot, right under the Affirm payment option
+  // Embedded Checkout only: remove "Pay with affirm" — the spinner takes its
+  // spot, right under the Affirm payment option. Direct API / VCN keep the
+  // CTA visible (disabled) during processing, as in the original demo.
+  if (state.flow === 'embedded') $('.cta').classList.add('hidden');
   $('#processing').classList.remove('hidden');
 }
 // Progress-bar / plan-selection helpers, shared by the modal (#afm-progress /
@@ -1751,17 +1744,16 @@ function closeEmbedded() {
   state.embeddedOpen = false;
   $('#embedded-wrap').classList.add('hidden');
 }
-// Screen order: phone number entry → verify (SMS code) → pick a plan. Phone +
-// verify are both part of the "Verify" progress step (matches Affirm's real
-// checkout, which bundles them); the progress bar only advances on plan.
+// Screen order: verify (SMS code) → pick a plan — no phone-number entry
+// screen, matching Direct API / VCN's modal (which opens straight to the PIN
+// screen too; the shopper's phone is already on file with the merchant).
 // Connected Accounts toggle: when on, the shopper already has a valid,
-// connected + opted-in Affirm session, so phone/verify are skipped entirely
+// connected + opted-in Affirm session, so verification is skipped entirely
 // and checkout opens directly on plan selection (the "Verify" progress step
 // just shows as already done).
 function resetEmbeddedScreens() {
   const connected = state.connectedAccounts;
-  $('#emb-screen-phone').classList.toggle('hidden', connected);
-  $('#emb-screen-verify').classList.add('hidden');
+  $('#emb-screen-verify').classList.toggle('hidden', connected);
   $('#emb-screen-terms').classList.toggle('hidden', !connected);
   $('#emb-screen-review').classList.add('hidden');
   $('#embedded-confirm-wrap').classList.remove('hidden');
@@ -1771,7 +1763,7 @@ function resetEmbeddedScreens() {
   setProgress('#emb-progress', connected ? 'plan' : 'verify');
   const first = $('#emb-plan .afm-plan-row');
   if (first) selectPlanRow('#emb-plan', first);
-  updateEmbeddedConfirmButton(connected ? 'plan' : 'phone');
+  updateEmbeddedConfirmButton(connected ? 'plan' : 'verify');
   // The embedded frame's sandbox note drops the PIN mention when verification
   // is skipped; the modal (Direct API/VCN) always keeps it (set in applyConfig()).
   const embSandbox = $('#embedded-mock .afm-sandbox-t');
@@ -1812,7 +1804,7 @@ function populateEmbeddedReview() {
   $('#review-schedule').innerHTML = html;
 }
 // The confirmation button's label/state changes as the shopper moves through
-// the inline checkout (phone → verify → plan → confirm), per the doc.
+// the inline checkout (verify → plan → confirm), per the doc.
 function updateEmbeddedConfirmButton(stage) {
   const btn = $('#embedded-confirm-btn');
   if (!btn) return;
@@ -2205,14 +2197,10 @@ $('#affirm-confirm').addEventListener('click', () => onAffirmConfirmed());
 $('#affirm-cancel').addEventListener('click', () => onAffirmCancelled());
 
 // Embedded Checkout: the confirmation button is a single control whose action/label
-// changes depending on the shopper's stage (phone → verify → plan → confirm), per the doc.
+// changes depending on the shopper's stage (verify → plan → confirm), per the doc.
 $('#embedded-confirm-btn').addEventListener('click', () => {
   const btn = $('#embedded-confirm-btn');
-  if (btn.dataset.stage === 'phone') {
-    $('#emb-screen-phone').classList.add('hidden');
-    $('#emb-screen-verify').classList.remove('hidden');
-    updateEmbeddedConfirmButton('verify');
-  } else if (btn.dataset.stage === 'verify') {
+  if (btn.dataset.stage === 'verify') {
     $('#emb-screen-verify').classList.add('hidden');
     $('#emb-screen-terms').classList.remove('hidden');
     setProgress('#emb-progress', 'plan');
