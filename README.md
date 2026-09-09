@@ -1,4 +1,4 @@
-# Affirm Integration Demo — Direct API · Virtual Card (VCN) · Express Checkout
+# Affirm Integration Demo — Direct API · Virtual Card (VCN) · Express &amp; Embedded Checkout
 
 An interactive, **single-file** mockup that walks a merchant through Affirm's
 checkout integrations side by side, with a toggle to switch between them. Built
@@ -26,6 +26,27 @@ minutes by editing one config block, then share a link or a file.
   → **Authorize** and **validate the amount**. Builds on Direct API; **US-only**.
   Includes a ⚙ Config toggle to simulate the merchant `422 UNSUPPORTED_SHIPPING_ZONE`
   path.
+- **Embedded Checkout** — the *same* `affirm.checkout.open({ onSuccess, onFail })`
+  call as Direct API, but Affirm.js renders the checkout **inline** into two
+  merchant-page elements (`#affirm-embedded-checkout` + `#affirm-checkout-confirmation-button`)
+  instead of opening a modal or redirecting — the shopper **never leaves the
+  checkout page**. From `onSuccess` onward the backend lifecycle is identical to
+  Direct API (server-side **Authorize** → **Capture / Void / Refund**). Supports
+  a **Connected account** option that skips sign-in/OTP when the shopper's Affirm
+  account is already connected and opted-in. See
+  [`docs/integration-guide-embedded-checkout.md`](docs/integration-guide-embedded-checkout.md).
+
+### Express &amp; Embedded are Config-driven (no code changes)
+
+The two "next-gen" checkout experiences are turned on from the ⚙ **Config**
+popover — no editing required:
+
+- **Product-page checkout (Direct API)** → **Express Checkout** (default) vs
+  **Standard**. Express runs the Affirm-hosted flow right on the product page
+  (**Buy With Affirm**); Standard leaves only **Add to Bag**.
+- **Cart / checkout-page checkout (Direct API)** → **Modal** (default) vs
+  **Embedded Checkout**, plus a **Connected account** checkbox. When Embedded is
+  on, the Direct API cart/checkout page renders Affirm inline instead of a modal.
 
 Three synced columns: a **storefront** (shopper view + back-office order
 management), the **sequence of operations**, and a live **backend/API activity
@@ -113,9 +134,11 @@ Everything below `DEMO_CONFIG` is the engine — you shouldn’t need to touch i
 
 The engine is a small state machine:
 
-- **`FLOWS.direct` / `FLOWS.vcnClient` / `FLOWS.vcnServer` / `FLOWS.express`** —
-  ordered arrays of steps. Each step has `actors`, a `kind`, a `label`, and a
-  `desc`. `stepsForFlow()` picks the active array from `state.flow` (+ `vcnMode`).
+- **`FLOWS.direct` / `FLOWS.vcnClient` / `FLOWS.vcnServer` / `FLOWS.express` /
+  `FLOWS.embedded`** — ordered arrays of steps. Each step has `actors`, a `kind`,
+  a `label`, and a `desc`. `stepsForFlow()` picks the active array from
+  `state.flow` (+ `vcnMode`), and from the ⚙ Config experience flags via
+  `isExpressExperience()` / `isEmbeddedExperience()`.
 - **`runStep(step)`** — a `switch` on `step.kind` that drives the storefront,
   the modal, and the log (`logApi`, `logEvent`, `logDivider`).
 - **`DOCS`** — the Affirm doc links surfaced next to each call; pass `doc: DOCS.x`
@@ -132,6 +155,8 @@ To add a step: add an entry to the flow array and a matching `case` in
 - [Open Affirm Checkout](https://docs.affirm.com/developers/docs/open-affirm-checkout)
 - [Open Affirm Virtual Card Checkout](https://docs.affirm.com/developers/docs/open-affirm-virtual-card-checkout)
 - [About Express Checkout](https://docs.affirm.com/developers/docs/express-checkout) · [Set up Express Checkout](https://docs.affirm.com/developers/docs/set-up-express-checkout)
+- [Integration checklist](https://docs.affirm.com/developers/docs/integration-checklist)
+- Embedded Checkout — see [`docs/integration-guide-embedded-checkout.md`](docs/integration-guide-embedded-checkout.md) (preliminary internal doc)
 - [Managing transactions](https://docs.affirm.com/developers/docs/managing-transactions)
 
 ### Authoritative endpoint reference (captured from Affirm's Integration Guide Generator)
